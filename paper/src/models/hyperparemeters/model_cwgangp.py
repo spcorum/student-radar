@@ -22,8 +22,8 @@ def generator_loss(fake_img):
 
 
 def build_gan():
-    BATCH_SIZE = 64
-    EPOCHS = 50_000 
+    BATCH_SIZE = 32
+    EPOCHS = 100 
 
     CODINGS_SIZE = 100
 
