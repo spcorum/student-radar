@@ -45,21 +45,30 @@ class WandbCallbackGANConditional(Callback):
 
         # *** SAVE MODEL WEIGHTS ***
         # Ensure model is built before saving
-        if not self.model.built:
-            try:
-                dummy_input = tf.zeros((1, *self.model.input_shape[1:]))
-                self.model(dummy_input)
-            except Exception as e:
-                print(f"[Warning] Could not build model before saving: {e}")
+        try:
+                dummy_noise = tf.random.normal((1, self.model.latent_dim))
+                dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
+                gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+                fake_signal = self.model.generator(gen_input)
+
+                dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
+                disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
+                _ = self.model.discriminator(disc_input)
+
+                print("[INFO] Submodels are initialized and ready for saving.")
+        except Exception as e:
+                print(f"[Warning] Could not build submodels before saving: {e}")
                 return
 
         # Save periodically and also to wandb directory
         filename = f"model-{self.wandb.run.id}-epoch-{epoch+1}.weights.h5"
         full_path = os.path.join(self.model_path, filename)
         self.model.save_weights(full_path)
+        print(f"[Saved] Model weights saved to: {full_path}")
 
         if self.wandb.run:
             wandb_weights_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.weights.h5")
             self.model.save_weights(wandb_weights_path)
             # wandb.save() expects relative path, so we use only filename
             self.wandb.save(wandb_weights_path)
+            print(f"[Saved] Model weights saved to: {wandb_weights_path}")

@@ -8,7 +8,9 @@ import tensorflow as tf
 
 from cwgangp import CWGANGP
 
-
+def call(self, inputs):
+    noise, labels = inputs
+    return self.generator(tf.concat([noise, labels], axis=1))
 
 def discriminator_loss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
@@ -23,7 +25,7 @@ def generator_loss(fake_img):
 
 def build_gan():
     BATCH_SIZE = 32
-    EPOCHS = 100 
+    EPOCHS = 1000
 
     CODINGS_SIZE = 100
 
@@ -61,6 +63,20 @@ def build_gan():
         generator_loss_fn=generator_loss
     )
 
+    try:
+        dummy_noise = tf.random.normal((1, CODINGS_SIZE))
+        dummy_label = tf.zeros((1, 1))  # adjust if using multi-class
+        gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+        fake_signal = generator(gen_input)
+
+        dummy_cond = tf.zeros((1, 1024, 1))
+        disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
+        _ = discriminator(disc_input)
+
+        print("[INFO] Generator and discriminator successfully built.")
+    except Exception as e:
+        print(f"[ERROR] Failed to build models during build_gan: {e}")
+
     gan_config = {
         'learning_rate': 0.0001,
         'batch_size': BATCH_SIZE,
@@ -69,5 +85,7 @@ def build_gan():
             'generator': generator.get_config(), 'discriminator': discriminator.get_config()
         },
     }
+
+    gan.build(input_shape=[(None, CODINGS_SIZE), (None, 1)])
 
     return gan, BATCH_SIZE, EPOCHS, gan_config
