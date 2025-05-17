@@ -27,7 +27,7 @@ def denormalize(generated, data_min, data_max, a, b):
 
 def save_conditional_generations(model, epoch, name):
     gan, _, _, _ = build_gan()
-    gan = load_weights(gan, f'./checkpoints/model-{model}/model-{model}-epoch-{epoch}.h5')
+    gan = load_weights(gan, f'./checkpoints/model-{model}/model-{model}-epoch-{epoch}.weights.h5')
 
     generator = gan.generator
     start_time = time.time()
@@ -44,6 +44,7 @@ def save_conditional_generations(model, epoch, name):
     generated_denormalized = denormalize(generated, -3884.0, 4772.0, -1, 1)
     generated_denormalized = np.round(generated_denormalized, 0)
     print("%s" % (time.time() - start_time))
+    os.makedirs('./data/generated/', exist_ok=True)
     np.save(f'./data/generated/{name}.npy', generated_denormalized)
 
 

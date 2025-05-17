@@ -84,7 +84,7 @@ from src import plot
 
 
 # Path to data
-PATH = "/home/eduardo/workspace/rota2030-bsm-srdg/data/real/"
+PATH = "/Users/susanli/raw-radar-data-generation/paper/data/real/"
 
 try:
     from src import Signal_Processing as sp
@@ -210,28 +210,29 @@ while i < int(len(raw_data)):
 
     i += 1
 
-np.save('data/generation/generation_ra.npy', np.array(ra_imgs))
+import os
+np.save('/Users/susanli/raw-radar-data-generation/paper/data/generated/generation_ra.npy', np.array(ra_imgs))
 
 # ------------------------------------------------------------------- #
 # ---------------- Record Data on CSV File -------------------------- #
 # ------------------------------------------------------------------- #
-if RECORD_CSV:
-    detected_objects = pd.DataFrame(
-        columns=[
-            "Frame",
-            "TargetIndex",
-            "Px",
-            "Py",
-            "Vx",
-            "Vy",
-            "Azi",
-            "Db",
-        ]
-    )
+# if RECORD_CSV:
+#     detected_objects = pd.DataFrame(
+#         columns=[
+#             "Frame",
+#             "TargetIndex",
+#             "Px",
+#             "Py",
+#             "Vx",
+#             "Vy",
+#             "Azi",
+#             "Db",
+#         ]
+#     )
 
-    for key in Pointsrecord:
-        detected_objects[key] = Pointsrecord[key]
-        detected_objects.to_csv(nameFile)
+#     for key in Pointsrecord:
+#         detected_objects[key] = Pointsrecord[key]
+#         detected_objects.to_csv(nameFile)
 
 
 
