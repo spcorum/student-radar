@@ -1,5 +1,10 @@
-import sys 
-sys.path.append('./src/models/trainers')
+import sys
+import os
+
+# Add the correct path to trainers folder
+sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'trainers')))
+
+#sys.path.append('./src/models/trainers')
 
 from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer
 from tensorflow.keras.models import Sequential

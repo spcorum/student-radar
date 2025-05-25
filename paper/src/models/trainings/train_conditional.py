@@ -6,8 +6,8 @@ import tensorflow as tf
 import wandb
 
 # Append custom module paths
-sys.path.append('src/models/callbacks/')
-sys.path.append('src/models/hyperparemeters/')
+sys.path.append('models/callbacks/')
+sys.path.append('models/hyperparemeters/')
 
 from callback_conditional import WandbCallbackGANConditional
 from model_cwgangp import build_gan
@@ -28,6 +28,7 @@ def load_weights(gan, weights_path):
     return gan
 
 def load_dataset_labaled(path_data, path_label, batch_size):
+    print(path_data) 
     data = np.load(path_data)
     labels_generator, labels_discriminator = np.load(path_label, allow_pickle=True)
 
@@ -50,8 +51,8 @@ def main():
     gan, batch_size, epochs, gan_config = build_gan()
 
     wandb.init(
-        project='test',
-        entity='eduardo-candioto',
+        project='radar-synth',
+        entity='vimalashekar04',
         name='conditional-nooutiliers',
         config=gan_config,
         # resume='allow',  # enable if resuming run
@@ -62,6 +63,8 @@ def main():
         print('Resuming Run...')
         model_file = wandb.restore(f'model-{wandb.run.id}.h5').name
         gan = load_weights(gan, model_file)
+    
+    os.chdir('/content/drive/MyDrive/student-radar/paper')
 
     dataset = load_dataset_labaled(
         './data/preprocessed/EXP_17_M_chirps_scaled.npy',
@@ -76,7 +79,7 @@ def main():
         initial_epoch=wandb.run.step,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[WandbCallbackGANConditional(wandb)]
+        callbacks=[]
     )
 
 if __name__ == '__main__':

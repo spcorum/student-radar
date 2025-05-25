@@ -70,5 +70,5 @@ class WandbCallbackGANConditional(Callback):
             wandb_weights_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.weights.h5")
             self.model.save_weights(wandb_weights_path)
             # wandb.save() expects relative path, so we use only filename
-            self.wandb.save(wandb_weights_path)
+            #self.wandb.save(wandb_weights_path)
             print(f"[Saved] Model weights saved to: {wandb_weights_path}")
