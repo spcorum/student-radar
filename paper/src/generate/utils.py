@@ -70,29 +70,87 @@ def load_dataset(path, batch_size, val_split=0.2, shuffle=True):
     return train_dataset, val_dataset
 
 
-def load_dataset_labaled(path_data, path_label, batch_size):
+# def load_dataset_labaled(path_data, path_label, batch_size):
+#     data = np.load(path_data)
+#     labels = np.load(path_label)
+#     labels_generator = np.asmatrix(labels[0])
+#     labels_discriminator = np.asmatrix(labels[1])
+
+#     data_tensor = tf.convert_to_tensor(data)
+#     labels_generator_tensor = tf.convert_to_tensor(labels_generator)
+#     labels_discriminator_tensor = tf.convert_to_tensor(labels_discriminator)
+#     del data
+#     del labels
+#     del labels_discriminator
+#     del labels_generator
+#     gc.collect()
+
+#     dataset = tf.data.Dataset.from_tensor_slices((data_tensor, labels_generator_tensor, labels_discriminator_tensor))
+#     del data_tensor
+#     del labels_generator_tensor
+#     del labels_discriminator_tensor
+#     gc.collect()
+
+#     dataset = dataset.shuffle(10_000)
+#     dataset = dataset.batch(batch_size, drop_remainder=True).prefetch(1)
+#     print(f'\nNumber of batches: {len(dataset)}')
+
+#     return dataset
+
+def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.1):
     data = np.load(path_data)
     labels = np.load(path_label)
+
     labels_generator = np.asmatrix(labels[0])
     labels_discriminator = np.asmatrix(labels[1])
-
-    data_tensor = tf.convert_to_tensor(data)
-    labels_generator_tensor = tf.convert_to_tensor(labels_generator)
-    labels_discriminator_tensor = tf.convert_to_tensor(labels_discriminator)
-    del data
     del labels
-    del labels_discriminator
+    gc.collect()
+
+    # Split indices
+    num_samples = data.shape[0]
+    split = int(num_samples * val_split)
+
+    indices = np.arange(num_samples)
+    np.random.shuffle(indices)
+    val_indices = indices[:split]
+    train_indices = indices[split:]
+
+    # Split data and labels
+    train_data = data[train_indices]
+    val_data = data[val_indices]
+
+    train_labels_generator = labels_generator[train_indices]
+    val_labels_generator = labels_generator[val_indices]
+
+    train_labels_discriminator = labels_discriminator[train_indices]
+    val_labels_discriminator = labels_discriminator[val_indices]
+
+    # Convert to tensors
+    train_dataset = tf.data.Dataset.from_tensor_slices((
+        tf.convert_to_tensor(train_data),
+        tf.convert_to_tensor(train_labels_generator),
+        tf.convert_to_tensor(train_labels_discriminator),
+    ))
+
+    val_dataset = tf.data.Dataset.from_tensor_slices((
+        tf.convert_to_tensor(val_data),
+        tf.convert_to_tensor(val_labels_generator),
+        tf.convert_to_tensor(val_labels_discriminator),
+    ))
+
+    # Cleanup
+    del data
     del labels_generator
+    del labels_discriminator
+    del train_data, val_data
+    del train_labels_generator, val_labels_generator
+    del train_labels_discriminator, val_labels_discriminator
     gc.collect()
 
-    dataset = tf.data.Dataset.from_tensor_slices((data_tensor, labels_generator_tensor, labels_discriminator_tensor))
-    del data_tensor
-    del labels_generator_tensor
-    del labels_discriminator_tensor
-    gc.collect()
+    train_dataset = train_dataset.shuffle(10_000)
+    train_dataset = train_dataset.batch(batch_size, drop_remainder=True).prefetch(1)
+    val_dataset = val_dataset.batch(batch_size, drop_remainder=True).prefetch(1)
 
-    dataset = dataset.shuffle(10_000)
-    dataset = dataset.batch(batch_size, drop_remainder=True).prefetch(1)
-    print(f'\nNumber of batches: {len(dataset)}')
+    print(f'\nTrain batches: {len(train_dataset)} | Val batches: {len(val_dataset)}')
 
-    return dataset
+    return train_dataset, val_dataset
