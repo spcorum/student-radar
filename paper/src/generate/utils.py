@@ -25,18 +25,49 @@ def load_weights(gan, weights_path):
     return gan
     
 
-def load_dataset(path, batch_size):
+#def load_dataset(path, batch_size):
+#    data = np.load(path)
+#    tensor = tf.convert_to_tensor(data)
+#    dataset = tf.data.Dataset.from_tensor_slices(tensor)
+#    del data
+#    del tensor
+#    gc.collect()
+#
+#    dataset = dataset.batch(batch_size, drop_remainder=True).prefetch(1)
+#    print(f'\nNumber of batches: {len(dataset)}\n')
+#
+#    return dataset
+
+def load_dataset(path, batch_size, val_split=0.2, shuffle=True):
     data = np.load(path)
-    tensor = tf.convert_to_tensor(data)
-    dataset = tf.data.Dataset.from_tensor_slices(tensor)
-    del data
-    del tensor
+    n = data.shape[0]
+    n_val = int(n * val_split)
+
+    idx = np.arange(n)
+    if shuffle:
+        np.random.shuffle(idx)
+
+    val_idx = idx[:n_val]
+    train_idx = idx[n_val:]
+
+    train_data = data[train_idx]
+    val_data = data[val_idx]
+
+    train_tensor = tf.convert_to_tensor(train_data)
+    val_tensor = tf.convert_to_tensor(val_data)
+
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_tensor)
+    val_dataset = tf.data.Dataset.from_tensor_slices(val_tensor)
+
+    del data, train_data, val_data, train_tensor, val_tensor
     gc.collect()
 
-    dataset = dataset.batch(batch_size, drop_remainder=True).prefetch(1)
-    print(f'\nNumber of batches: {len(dataset)}\n')
+    train_dataset = train_dataset.batch(batch_size, drop_remainder=True).prefetch(1)
+    val_dataset = val_dataset.batch(batch_size, drop_remainder=True).prefetch(1)
 
-    return dataset
+    print(f'\nTrain batches: {len(train_dataset)} | Val batches: {len(val_dataset)}\n')
+
+    return train_dataset, val_dataset
 
 
 def load_dataset_labaled(path_data, path_label, batch_size):
