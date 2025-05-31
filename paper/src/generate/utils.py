@@ -38,7 +38,7 @@ def load_weights(gan, weights_path):
 #
 #    return dataset
 
-def load_dataset(path, batch_size, val_split=0.2, shuffle=True):
+def load_dataset(path, batch_size, val_split=0.2, shuffle=False):
     data = np.load(path)
     n = data.shape[0]
     n_val = int(n * val_split)
