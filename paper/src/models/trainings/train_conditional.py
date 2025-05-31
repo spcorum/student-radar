@@ -66,16 +66,22 @@ def main():
     
     os.chdir('/content/drive/MyDrive/student-radar/paper')
 
-    dataset = load_dataset_labaled(
+    #dataset = load_dataset_labaled(
+    #    './data/preprocessed/EXP_17_M_chirps_scaled.npy',
+    #    './data/preprocessed/EXP_17_M_chirps_labels.npy',
+    #    batch_size
+    #)
+
+    train_dataset, val_dataset = load_dataset_labeled(
         './data/preprocessed/EXP_17_M_chirps_scaled.npy',
         './data/preprocessed/EXP_17_M_chirps_labels.npy',
-        batch_size
-    )
+        batch_size)
 
     print(f'\n\n--------------------- Run: {wandb.run.name} ---------------------------\n\n')
 
     gan.fit(
-        dataset,
+        train_dataset,
+        validation_data=val_dataset,
         initial_epoch=wandb.run.step,
         epochs=epochs,
         batch_size=batch_size,
