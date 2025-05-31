@@ -41,14 +41,14 @@ def load_weights(gan, weights_path):
 def load_dataset(path, batch_size, val_split=0.2, shuffle=False):
     data = np.load(path)
     n = data.shape[0]
-    n_val = int(n * val_split)
+    split = int(n * val_split)
 
     idx = np.arange(n)
     if shuffle:
         np.random.shuffle(idx)
 
-    val_idx = idx[:n_val]
-    train_idx = idx[n_val:]
+    val_idx = idx[:split]
+    train_idx = idx[split:]
 
     train_data = data[train_idx]
     val_data = data[val_idx]
@@ -97,7 +97,7 @@ def load_dataset(path, batch_size, val_split=0.2, shuffle=False):
 
 #     return dataset
 
-def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.2):
+def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.2, shuffle=False):
     data = np.load(path_data)
     labels = np.load(path_label)
 
@@ -109,21 +109,23 @@ def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.2):
     # Split indices
     num_samples = data.shape[0]
     split = int(num_samples * val_split)
+    idx = np.arange(n)
+    
+    if shuffle:
+        np.random.shuffle(idx)
 
-    indices = np.arange(num_samples)
-    np.random.shuffle(indices)
-    val_indices = indices[:split]
-    train_indices = indices[split:]
+    val_idx = idx[:split]
+    train_idx = idx[split:]
 
     # Split data and labels
-    train_data = data[train_indices]
-    val_data = data[val_indices]
+    train_data = data[train_idx]
+    val_data = data[val_idx]
 
-    train_labels_generator = labels_generator[train_indices]
-    val_labels_generator = labels_generator[val_indices]
+    train_labels_generator = labels_generator[train_idx]
+    val_labels_generator = labels_generator[val_idx]
 
-    train_labels_discriminator = labels_discriminator[train_indices]
-    val_labels_discriminator = labels_discriminator[val_indices]
+    train_labels_discriminator = labels_discriminator[train_idx]
+    val_labels_discriminator = labels_discriminator[val_idx]
 
     # Convert to tensors
     train_dataset = tf.data.Dataset.from_tensor_slices((
