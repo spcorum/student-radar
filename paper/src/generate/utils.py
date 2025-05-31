@@ -97,7 +97,7 @@ def load_dataset(path, batch_size, val_split=0.2, shuffle=True):
 
 #     return dataset
 
-def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.1):
+def load_dataset_labeled(path_data, path_label, batch_size, val_split=0.2):
     data = np.load(path_data)
     labels = np.load(path_label)
 
