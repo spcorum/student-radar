@@ -38,11 +38,13 @@ def main():
         model_file = wandb.restore(f'model-{wandb.run.id}.h5').name
         gan = load_weights(gan, model_file)
     
-    dataset = load_dataset('./data/real/EXP_17_M_frames_scaled.npy', batch_size)
+    # dataset = load_dataset('./data/real/EXP_17_M_frames_scaled.npy', batch_size)
+    train_dataset, val_dataset = load_dataset(path, batch_size)
 
     print(f'\n\n--------------------- Run: {wandb.run.name} ---------------------------\n\n')
 
-    gan.fit(dataset,
+    gan.fit(train_dataset,
+            validation_data=val_dataset,
             initial_epoch=wandb.run.step, epochs=epochs, batch_size=batch_size,
             callbacks=[],
             verbose=2)
