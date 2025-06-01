@@ -14,9 +14,9 @@ import tensorflow as tf
 
 from cwgangp import CWGANGP
 
-def call(self, inputs):
-    noise, labels = inputs
-    return self.generator(tf.concat([noise, labels], axis=1))
+#def call(self, inputs):
+#    noise, labels = inputs
+#    return self.generator(tf.concat([noise, labels], axis=1))
 
 def discriminator_loss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
