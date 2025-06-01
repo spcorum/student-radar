@@ -212,8 +212,8 @@ class CWGANGP(Model):
         # Get the logits for the fake and real signals
         # fake_logits = self.discriminator(fake_signals_labels, training=False)
         # real_logits = self.discriminator(real_signals_labels, training=False)
-        fake_logits = self.discriminator([fake_signals, labels_discriminator_channel], training=True)
-        real_logits = self.discriminator([real_signals, labels_discriminator_channel], training=True)
+        fake_logits = self.discriminator([fake_signals, labels_discriminator_channel], training=False)
+        real_logits = self.discriminator([real_signals, labels_discriminator_channel], training=False)
 
         # Calculate the discriminator and generator losses
         d_cost = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
