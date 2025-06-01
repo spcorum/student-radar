@@ -4,6 +4,7 @@ import gc
 import numpy as np
 import tensorflow as tf
 import wandb
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 # Append custom module paths
 sys.path.append('models/callbacks/')
@@ -74,12 +75,20 @@ def main():
 
     print(f'\n\n--------------------- Run: {wandb.run.name} ---------------------------\n\n')
 
+    gen_loss_cb = ModelCheckpoint(
+        filepath=f'model-{wandb.run.id}.h5',
+        save_weights_only=True,
+        save_best_only=True,
+        monitor='val_generator_loss',
+        mode='min'
+    )
+
     gan.fit(
         dataset,
         initial_epoch=wandb.run.step,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[]
+        callbacks=[gen_loss_cb]
     )
 
 if __name__ == '__main__':
