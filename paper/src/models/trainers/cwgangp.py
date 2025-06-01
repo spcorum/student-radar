@@ -67,9 +67,11 @@ class CWGANGP(Model):
         batch_size = tf.shape(real_signals)[0]
 
         # Made one channel with labels
-        labels_discriminator_channel = tf.repeat(
-            labels_discriminator, repeats=[1024]
-        )
+        #labels_discriminator_channel = tf.repeat(
+        #    labels_discriminator, repeats=[1024]
+        #)
+        labels_discriminator_channel = tf.tile(
+            labels_discriminator[:, None, :], [1, 1024, 1])
         labels_discriminator_channel = tf.reshape(
             labels_discriminator_channel, (-1, 1024, 1)
         )
