@@ -95,12 +95,13 @@ class CWGANGP(Model):
                 shape=(batch_size, self.latent_dim)
             )
             # Concate latent vector with the labels
-            random_latent_labels = tf.concat(
-                [random_latent, labels_generator], axis=1
-            )
+            #random_latent_labels = tf.concat(
+            #    [random_latent, labels_generator], axis=1
+            #)
             with tf.GradientTape() as tape:
                 # Generate fake images from the latent vector
-                fake_signals = self.generator(random_latent_labels, training=True)
+                #fake_signals = self.generator(random_latent_labels, training=True)
+                fake_signals = self.generator([random_latent, labels_generator], training=True)
                 # Concat generations with the labels
                 fake_signals_labels = tf.concat(
                     [fake_signals, labels_discriminator_channel], axis=2
