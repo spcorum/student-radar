@@ -6,10 +6,11 @@ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '
 
 #sys.path.append('./src/models/trainers')
 
-from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer
+from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer, Concatenate, LayerNormalization
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
-import tensorflow as tf
+from tensorflow.keras import Input
+from tensorflow.keras import Model
 
 from cwgangp import CWGANGP
 
@@ -28,37 +29,43 @@ def generator_loss(fake_img):
     return -tf.reduce_mean(fake_img)
 
 
+def build_generator(codings_size, label_dim):
+    noise_input = Input(shape=(codings_size,), name="noise_input")
+    label_input = Input(shape=(label_dim,), name="label_input")
 
+    # Embed real-valued label into a dense vector
+    label_embedding = Dense(16, activation='relu', name='label_embedding')(label_input)
+    combined_input = Concatenate(name="concat_noise_label")([noise_input, label_embedding])
+
+    x = Dense(4 * 256)(combined_input)
+    x = Reshape([4, 256])(x)
+    x = LayerNormalization()(x)
+    x = ReLU()(x)
+
+    x = Conv1DTranspose(128, 25, strides=4, padding='same')(x)
+    x = LayerNormalization()(x)
+    x = ReLU()(x)
+
+    x = Conv1DTranspose(64, 25, strides=4, padding='same')(x)
+    x = LayerNormalization()(x)
+    x = ReLU()(x)
+
+    x = Conv1DTranspose(32, 25, strides=4, padding='same')(x)
+    x = LayerNormalization()(x)
+    x = ReLU()(x)
+
+    output = Conv1DTranspose(16, 25, strides=4, padding='same', activation='tanh')(x)
+
+    return Model([noise_input, label_input], output, name="generator")
 
 def build_gan():
     BATCH_SIZE = 32
     EPOCHS = 1000
 
     CODINGS_SIZE = 100
+    LABEL_DIM = 1
 
-    generator = Sequential([
-
-        InputLayer((101,)),
-        Dense(4 * 256, input_shape=[CODINGS_SIZE]),
-        Reshape([4, 256]),
-        LayerNormalization(),
-        ReLU(),
-
-        Conv1DTranspose(128, 25, strides=4, padding='same'),
-        LayerNormalization(),
-        ReLU(),
-
-        Conv1DTranspose(64, 25, strides=4, padding='same'),
-        LayerNormalization(),
-        ReLU(),
-
-        Conv1DTranspose(32, 25, strides=4, padding='same'),
-        LayerNormalization(),
-        ReLU(),
-
-        Conv1DTranspose(16, 25, strides=4, padding='same', activation='tanh')
-
-    ], name='generator')
+    generator = build_generator(codings_size = CODINGS_SIZE, label_dim = LABEL_DIM)
 
     discriminator = Sequential([
         InputLayer((1024, 17)),
@@ -86,8 +93,9 @@ def build_gan():
     try:
         dummy_noise = tf.random.normal((1, CODINGS_SIZE))
         dummy_label = tf.zeros((1, 1))  # adjust if using multi-class
-        gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
-        fake_signal = generator(gen_input)
+        #gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+        #fake_signal = generator(gen_input)
+        fake_signal = generator([dummy_noise, dummy_label])
 
         dummy_cond = tf.zeros((1, 1024, 1))
         disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
@@ -106,6 +114,6 @@ def build_gan():
         },
     }
 
-    gan.build(input_shape=[(None, CODINGS_SIZE), (None, 1)])
+    gan.build(input_shape=[(None, CODINGS_SIZE), (None, LABEL_DIM)])
 
     return gan, BATCH_SIZE, EPOCHS, gan_config
