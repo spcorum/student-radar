@@ -125,6 +125,15 @@ class CWGANGP(Model):
 
                 # Calculate the discriminator loss using the fake and real image logits
                 d_cost = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
+
+                # Concat generations with the labels & real with the labels as gradient_penality expects this
+                fake_signals_labels = tf.concat(
+                    [fake_signals, labels_discriminator_channel], axis=2
+                )
+                real_signals_labels = tf.concat(
+                    [real_signals, labels_discriminator_channel], axis=2
+                )
+
                 # Calculate the gradient penalty
                 gp = self.gradient_penalty(batch_size, real_signals_labels, fake_signals_labels)
                 # Add the gradient penalty to the original discriminator loss
