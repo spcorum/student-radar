@@ -11,6 +11,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
 import tensorflow as tf 
+from tensorflow_addons.layers import SpectralNormalization
 
 from cwgangp import CWGANGP
 
@@ -68,17 +69,48 @@ def build_discriminator(input_shape, label_dim=1):
     # Concatenate along channel dimension
     x = Concatenate(axis=-1)([signal_input, label_input])  # (1024, 17)
 
-    x = Conv1D(32, kernel_size=25, strides=4, padding='same')(x)
+    # x = Conv1D(32, kernel_size=25, strides=4, padding='same')(x)
+    x = SpectralNormalization(Conv1D(32, kernel_size=25, strides=4, padding='same'))(x)
     x = LeakyReLU(0.2)(x)
-    x = Conv1D(64, kernel_size=25, strides=4, padding='same')(x)
+    # x = Conv1D(64, kernel_size=25, strides=4, padding='same')(x)
+    x = SpectralNormalization(Conv1D(64, kernel_size=25, strides=4, padding='same'))(x)
     x = LeakyReLU(0.2)(x)
-    x = Conv1D(128, kernel_size=25, strides=4, padding='same')(x)
+    # x = Conv1D(128, kernel_size=25, strides=4, padding='same')(x)
+    x = SpectralNormalization(Conv1D(128, kernel_size=25, strides=4, padding='same'))(x)
     x = LeakyReLU(0.2)(x)
-    x = Conv1D(256, kernel_size=25, strides=4, padding='same')(x)
+    # x = Conv1D(256, kernel_size=25, strides=4, padding='same')(x)
+    x = SpectralNormalization(Conv1D(256, kernel_size=25, strides=4, padding='same'))(x)
     x = LeakyReLU(0.2)(x)
 
     x = Flatten()(x)
-    output = Dense(1, activation='linear')(x)
+    # output = Dense(1, activation='linear')(x)
+    output = SpectralNormalization(Dense(1, activation='linear'))(x)
+
+    return Model([signal_input, label_input], output, name='discriminator')
+
+def build_discriminator(input_shape, label_dim=1):
+    # Input: radar signal
+    signal_input = Input(shape=input_shape, name="signal_input")
+    # Input: label broadcasted across time (e.g., (1024, 1))
+    label_input = Input(shape=(input_shape[0], label_dim), name="label_input")
+
+    # Concatenate signal and label along the channel axis → (1024, 16 + 1)
+    x = Concatenate(axis=-1)([signal_input, label_input])  # (1024, 17)
+
+    x = SpectralNormalization(Conv1D(32, kernel_size=25, strides=4, padding='same'))(x)
+    x = LeakyReLU(0.2)(x)
+
+    x = SpectralNormalization(Conv1D(64, kernel_size=25, strides=4, padding='same'))(x)
+    x = LeakyReLU(0.2)(x)
+
+    x = SpectralNormalization(Conv1D(128, kernel_size=25, strides=4, padding='same'))(x)
+    x = LeakyReLU(0.2)(x)
+
+    x = SpectralNormalization(Conv1D(256, kernel_size=25, strides=4, padding='same'))(x)
+    x = LeakyReLU(0.2)(x)
+
+    x = Flatten()(x)
+    output = SpectralNormalization(Dense(1, activation='linear'))(x)
 
     return Model([signal_input, label_input], output, name='discriminator')
 
