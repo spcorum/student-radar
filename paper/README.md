@@ -35,7 +35,7 @@ save_prerpocessed_chirps_labels.ipynb
 ```
 This notebook will parse the data to numpy array and apply the change of scales. At the end of the execution will have one `.npy` file with the chirps data and other with the labels.
 
-### Add 
+### Install tensorflow-addons 
 Run this to install tensorflow-addons, which as the SpectralNorm layer.
 ```console
 pip install tensorflow-addons
