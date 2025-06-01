@@ -6,7 +6,7 @@ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '
 
 #sys.path.append('./src/models/trainers')
 
-from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer, Concatenate, LayerNormalization
+from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer, Concatenate, LayerNormalization, Add
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
@@ -30,87 +30,113 @@ def generator_loss(fake_img):
     return -tf.reduce_mean(fake_img)
 
 
+def residual_block_1d_generator(x, filters, kernel_size=25, strides=1):
+    """
+    1D residual block with Conv1DTranspose and layer normalization for generator
+    Input x: shape (N, L, C), where N is the batch size, L=1024 is the signal length, and C in the number of input channels 
+    Output: shape (N, L * strides, filters), where filters is the number of filters
+    """
+    C = x.shape[-1]
+    
+    # Main path
+    y = Conv1DTranspose(filters, kernel_size, strides=strides, padding='same')(x) # (N, L*strides, filters)
+    y = LayerNormalization()(y) # (N, L*strides, filters)
+    y = ReLU()(y) # (N, L*strides, filters); note L*strides = L for stides = 1
+
+    # Residual shortcut w/ shape matching (Conv1DTranspose preserves linearity)
+    if C != filters or strides != 1:
+        shortcut = Conv1DTranspose(filters, 1, strides=strides, padding='same')(x) # (N, L*strides, filters)
+    else:
+        shortcut = x # (N, L, filters)
+
+    output = ReLU()(Add()([y, shortcut]))  # Output = ReLU(MainPath(x) + ShortCut(x)); (N, L*strides, filters)
+
+    return output
+
+def residual_block_1d_discriminator(x, filters, kernel_size=25, strides=1):
+    """
+    1D residual block with Conv1D spectral normalization for discriminator
+    Input x: shape (N, L, C), where N is the batch size, L=1024 is the signal length, and C in the number of input channels
+    Output: shape (N, L // strides, filters), where filters is the number of filters
+    """
+    C = x.shape[-1]
+
+    y = SpectralNormalization(Conv1D(filters, kernel_size, strides=strides, padding='same'))(x) # (N, L//strides, filters)
+    y = LeakyReLU(0.2)(y) # (N, L//strides, filters); note L//strides = L for strides = 1
+
+    # Residual shortcut w/ shape matching (Conv1D and spectram normalization preserve linearity)
+    if C != filters or strides != 1:
+        shortcut = SpectralNormalization(Conv1D(filters, 1, strides=strides, padding='same'))(x) # (N, L//strides, filters)
+    else:
+        shortcut = x # (N, L, C)
+
+    output = Add()([y, shortcut]) # output = MainPath(x) + ShortCut(x), (N, L//strides, filters)
+
+    return output
+
+
 def build_generator(codings_size, label_dim):
-    noise_input = Input(shape=(codings_size,), name="noise_input")
-    label_input = Input(shape=(label_dim,), name="label_input")
+    
+    noise_input = Input(shape=(codings_size,), name="noise_input") # (N, codings_size)
+    label_input = Input(shape=(label_dim,), name="label_input") # (N, label_dim)
 
     # Embed real-valued label into a dense vector
-    label_embedding = Dense(16, activation='relu', name='label_embedding')(label_input)
-    combined_input = Concatenate(name="concat_noise_label")([noise_input, label_embedding])
+    label_embedding = Dense(16, activation='relu', name='label_embedding')(label_input) # (N, 16)
+    combined_input = Concatenate(name="concat_noise_label")([noise_input, label_embedding]) # (N, codings_size + 16)
 
-    x = Dense(4 * 256)(combined_input)
-    x = Reshape([4, 256])(x)
-    x = LayerNormalization()(x)
-    x = ReLU()(x)
+    # Reshape to give proper shape to residual 1DConv blocks
+    x = Dense(4 * 256)(combined_input) # (N, 1024)
+    x = Reshape((4, 256))(x) # (N, 4, 256)
 
-    x = Conv1DTranspose(128, 25, strides=4, padding='same')(x)
-    x = LayerNormalization()(x)
-    x = ReLU()(x)
+    # x = Conv1DTranspose(128, 25, strides=4, padding='same')(x)
+    # x = LayerNormalization()(x)
+    # x = ReLU()(x)
 
-    x = Conv1DTranspose(64, 25, strides=4, padding='same')(x)
-    x = LayerNormalization()(x)
-    x = ReLU()(x)
+    # x = Conv1DTranspose(64, 25, strides=4, padding='same')(x)
+    # x = LayerNormalization()(x)
+    # x = ReLU()(x)
 
-    x = Conv1DTranspose(32, 25, strides=4, padding='same')(x)
-    x = LayerNormalization()(x)
-    x = ReLU()(x)
+    # x = Conv1DTranspose(32, 25, strides=4, padding='same')(x)
+    # x = LayerNormalization()(x)
+    # x = ReLU()(x)
 
-    output = Conv1DTranspose(16, 25, strides=4, padding='same', activation='tanh')(x)
+    x = residual_block_1d_generator(x, 128, strides=4) # (N, 16, 128)
+    x = residual_block_1d_generator(x, 64, strides=4) # (N, 64, 64)
+    x = residual_block_1d_generator(x, 32, strides=4) # (N, 256, 32)
+
+    output = Conv1DTranspose(16, 25, strides=4, padding='same', activation='tanh')(x) # (N, 1024, 16)
 
     return Model([noise_input, label_input], output, name="generator")
 
 
 def build_discriminator(input_shape, label_dim=1):
     # Input: radar signal
-    signal_input = Input(shape=input_shape, name="signal_input")
-    # Input: label broadcasted across time
-    label_input = Input(shape=(input_shape[0], label_dim), name="label_input")
-
-    # Concatenate along channel dimension
-    x = Concatenate(axis=-1)([signal_input, label_input])  # (1024, 17)
-
-    # x = Conv1D(32, kernel_size=25, strides=4, padding='same')(x)
-    x = SpectralNormalization(Conv1D(32, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
-    # x = Conv1D(64, kernel_size=25, strides=4, padding='same')(x)
-    x = SpectralNormalization(Conv1D(64, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
-    # x = Conv1D(128, kernel_size=25, strides=4, padding='same')(x)
-    x = SpectralNormalization(Conv1D(128, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
-    # x = Conv1D(256, kernel_size=25, strides=4, padding='same')(x)
-    x = SpectralNormalization(Conv1D(256, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
-
-    x = Flatten()(x)
-    # output = Dense(1, activation='linear')(x)
-    output = SpectralNormalization(Dense(1, activation='linear'))(x)
-
-    return Model([signal_input, label_input], output, name='discriminator')
-
-def build_discriminator(input_shape, label_dim=1):
-    # Input: radar signal
-    signal_input = Input(shape=input_shape, name="signal_input")
+    signal_input = Input(shape=input_shape, name="signal_input") # (N, codings_size)
     # Input: label broadcasted across time (e.g., (1024, 1))
-    label_input = Input(shape=(input_shape[0], label_dim), name="label_input")
+    label_input = Input(shape=(input_shape[0], label_dim), name="label_input") # (N, label_dim)
 
-    # Concatenate signal and label along the channel axis → (1024, 16 + 1)
+    # Concatenate signal and label along the channel axis: (1024, 16 + 1)
     x = Concatenate(axis=-1)([signal_input, label_input])  # (1024, 17)
 
-    x = SpectralNormalization(Conv1D(32, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
+    # x = SpectralNormalization(Conv1D(32, kernel_size=25, strides=4, padding='same'))(x)
+    # x = LeakyReLU(0.2)(x)
 
-    x = SpectralNormalization(Conv1D(64, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
+    # x = SpectralNormalization(Conv1D(64, kernel_size=25, strides=4, padding='same'))(x)
+    # x = LeakyReLU(0.2)(x)
 
-    x = SpectralNormalization(Conv1D(128, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
+    # x = SpectralNormalization(Conv1D(128, kernel_size=25, strides=4, padding='same'))(x)
+    # x = LeakyReLU(0.2)(x)
 
-    x = SpectralNormalization(Conv1D(256, kernel_size=25, strides=4, padding='same'))(x)
-    x = LeakyReLU(0.2)(x)
+    # x = SpectralNormalization(Conv1D(256, kernel_size=25, strides=4, padding='same'))(x)
+    # x = LeakyReLU(0.2)(x)
 
-    x = Flatten()(x)
-    output = SpectralNormalization(Dense(1, activation='linear'))(x)
+    x = residual_block_1d_discriminator(x, 32, strides=4) # (N, 256, 32)
+    x = residual_block_1d_discriminator(x, 64, strides=4) # (N, 64, 64)
+    x = residual_block_1d_discriminator(x, 128, strides=4) # (N, 16, 128)
+    x = residual_block_1d_discriminator(x, 256, strides=4) # (N, 4, 256)
+
+    x = Flatten()(x) # (N, 1024)
+    output = SpectralNormalization(Dense(1, activation='linear'))(x) # (N, 1)
 
     return Model([signal_input, label_input], output, name='discriminator')
 
