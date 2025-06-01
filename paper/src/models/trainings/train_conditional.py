@@ -47,7 +47,7 @@ def load_weights(gan, weights_path):
 
 #     return dataset
 
-def load_dataset_labaled(path_data, path_label, batch_size, validation_split=0.2, seed = 1729):
+def load_dataset_labeled(path_data, path_label, batch_size, validation_split=0.2, seed = 1729):
     print(path_data)
 
     data = np.load(path_data)
