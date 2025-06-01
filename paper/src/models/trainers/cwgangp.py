@@ -73,14 +73,15 @@ class CWGANGP(Model):
         batch_size = tf.shape(real_signals)[0]
 
         # Made one channel with labels
-        #labels_discriminator_channel = tf.repeat(
-        #    labels_discriminator, repeats=[1024]
-        #)
+        # labels_discriminator_channel = tf.repeat(
+        #     labels_discriminator, repeats=[1024]
+        # )
+        # labels_discriminator_channel = tf.reshape(
+        #     labels_discriminator_channel, (-1, 1024, 1)
+        # )
         labels_discriminator_channel = tf.tile(
             labels_discriminator[:, None, :], [1, 1024, 1])
-        labels_discriminator_channel = tf.reshape(
-            labels_discriminator_channel, (-1, 1024, 1)
-        )
+        
 
         # For each batch, we are going to perform the
         # following steps as laid out in the original paper:
@@ -184,11 +185,12 @@ class CWGANGP(Model):
         # labels_discriminator_channel = tf.repeat(
         #     labels_discriminator, repeats=[1024]
         # )
+        # labels_discriminator_channel = tf.reshape(
+        #     labels_discriminator_channel, (-1, 1024, 1)
+        # )
         labels_discriminator_channel = tf.tile(
             labels_discriminator[:, None, :], [1, 1024, 1])
-        labels_discriminator_channel = tf.reshape(
-            labels_discriminator_channel, (-1, 1024, 1)
-        )
+        
 
         # Get the latent vector
         random_latent = tf.random.normal(shape=(batch_size, self.latent_dim))
