@@ -45,11 +45,20 @@ class CWGANGP(Model):
         alpha = tf.random.normal([batch_size, 1, 1], 0.0, 1.0)
         diff = fake_images - real_images
         interpolated = real_images + alpha * diff
+
+        # interpolated shape: (batch_size, 1024, signal_dim + label_dim)
+        signal_dim = self.discriminator.input_shape[0][-1] - 1  # assuming label_dim = 1
+
+        signal_part = interpolated[:, :, :signal_dim]
+        label_part = interpolated[:, :, signal_dim:]
+
+
         
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(interpolated)
             # 1. Get the discriminator output for this interpolated image.
-            pred = self.discriminator(interpolated, training=True)
+            # pred = self.discriminator(interpolated, training=True)
+            pred = self.discriminator([signal_part, label_part], training=True)
 
         # 2. Calculate the gradients w.r.t to this interpolated image.
         grads = gp_tape.gradient(pred, [interpolated])[0]
