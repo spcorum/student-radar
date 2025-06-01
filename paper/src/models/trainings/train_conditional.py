@@ -132,7 +132,8 @@ def main():
     gan.fit(
         train_dataset,
         validation_data=val_dataset,
-        initial_epoch=wandb.run.step,
+        # initial_epoch=wandb.run.step,
+        initial_epoch=getattr(wandb.run, "step", 0)
         epochs=epochs,
         batch_size=batch_size,
         callbacks=[gen_loss_cb, WandbCallbackGANConditional()]
