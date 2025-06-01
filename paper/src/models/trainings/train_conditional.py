@@ -88,7 +88,7 @@ def main():
         initial_epoch=wandb.run.step,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[gen_loss_cb]
+        callbacks=[gen_loss_cb, WandbCallbackGANConditional]
     )
 
 if __name__ == '__main__':
