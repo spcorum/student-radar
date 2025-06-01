@@ -95,7 +95,7 @@ def main():
     wandb.init(
         project='radar-synth',
         entity='vimalashekar04',
-        name='conditional-nooutiliers',
+        name='conditional-nooutliers',
         config=gan_config,
         # resume='allow',  # enable if resuming run
         # id="19fh3wpc"
@@ -133,7 +133,7 @@ def main():
         train_dataset,
         validation_data=val_dataset,
         # initial_epoch=wandb.run.step,
-        initial_epoch=getattr(wandb.run, "step", 0)
+        initial_epoch=getattr(wandb.run, "step", 0),
         epochs=epochs,
         batch_size=batch_size,
         callbacks=[gen_loss_cb, WandbCallbackGANConditional()]
