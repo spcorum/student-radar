@@ -93,11 +93,11 @@ def main():
     gan, batch_size, epochs, gan_config = build_gan()
 
     wandb.init(
-        project='radar-synth',
-        entity='vimalashekar04',
-        name='conditional-nooutliers',
+        project='student-generative-radar-gan-improved',
+        entity='spcorum',
+        name='conditional-radar-gan-student',
         config=gan_config,
-        # resume='allow',  # enable if resuming run
+        resume='allow',  # enable if resuming run
         # id="19fh3wpc"
     )
 
@@ -107,6 +107,16 @@ def main():
         gan = load_weights(gan, model_file)
     
     os.chdir('/content/drive/MyDrive/student-radar/paper')
+
+    checkpoint_file = f'model-{wandb.run.id}.h5'
+
+    initial_epoch = 0
+    if wandb.run.resumed:
+        print('Resuming Run...')
+        restored = wandb.restore(checkpoint_file)
+        if restored:
+            gan = load_weights(gan, restored.name)
+            initial_epoch = wandb.config.get("last_epoch", 0)
 
     #dataset = load_dataset_labaled(
     #    './data/preprocessed/EXP_17_M_chirps_scaled.npy',
@@ -121,6 +131,22 @@ def main():
 
     print(f'\n\n--------------------- Run: {wandb.run.name} ---------------------------\n\n')
 
+    gen_loss_cb_train = ModelCheckpoint(
+        filepath=f'model-{wandb.run.id}.h5',
+        save_weights_only=True,
+        save_best_only=True,
+        monitor='generator_loss',
+        mode='min'
+    )
+
+    disc_loss_cb_train = ModelCheckpoint(
+        filepath=f'model-{wandb.run.id}.h5',
+        save_weights_only=True,
+        save_best_only=True,
+        monitor='discriminator_loss',
+        mode='min'
+    )
+
     gen_loss_cb = ModelCheckpoint(
         filepath=f'model-{wandb.run.id}.h5',
         save_weights_only=True,
@@ -129,14 +155,25 @@ def main():
         mode='min'
     )
 
+    disc_loss_cb = ModelCheckpoint(
+        filepath=f'model-{wandb.run.id}.h5',
+        save_weights_only=True,
+        save_best_only=True,
+        monitor='val_discriminator_loss',
+        mode='min'
+    )
+
+    # extract a sample of real data for passing into logging metrix
+    for batch in train_dataset.take(1):
+        real_sample, _, _ = batch  # (data, gen_labels, disc_labels)
+
     gan.fit(
         train_dataset,
         validation_data=val_dataset,
-        # initial_epoch=wandb.run.step,
-        initial_epoch=getattr(wandb.run, "step", 0),
+        initial_epoch=initial_epoch,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[gen_loss_cb, WandbCallbackGANConditional()]
+        callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, WandbCallbackGANConditional(real_sample)]
     )
 
 if __name__ == '__main__':

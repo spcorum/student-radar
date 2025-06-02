@@ -122,8 +122,10 @@ class WandbCallbackGANConditional(Callback):
         # Log as a static image to avoid needing Plotly
         self.wandb.log({
             'epoch': epoch,
-            'discriminator_loss': logs.get('discriminator_loss'),
-            'generator_loss': logs.get('generator_loss'),
+            'train/discriminator_loss': logs.get('discriminator_loss'),
+            'train/generator_loss': logs.get('generator_loss'),
+            'val/discriminator_loss': logs.get('val_discriminator_loss'),
+            'val/generator_loss': logs.get('val_generator_loss'),
             'generations': self.wandb.Image(fig)
         })
         plt.tight_layout()
@@ -159,9 +161,23 @@ class WandbCallbackGANConditional(Callback):
         self.model.save_weights(full_path)
         print(f"[Saved] Model weights saved to: {full_path}")
 
+        # Save backup weights at each epoch
+        backup_filename = f"backup-epoch-{epoch+1}.h5"
+        backup_path = os.path.join(self.model_path, backup_filename)
+        self.model.save_weights(backup_path)
+        print(f"[Backup] Model weights saved to: {backup_path}")
+
+        # Save latest weights to wandb directory for resuming
         if self.wandb.run:
-            wandb_weights_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.weights.h5")
-            self.model.save_weights(wandb_weights_path)
-            # wandb.save() expects relative path, so we use only filename
-            #self.wandb.save(wandb_weights_path)
-            print(f"[Saved] Model weights saved to: {wandb_weights_path}")
+            wandb_resume_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.h5")
+            self.model.save_weights(wandb_resume_path)
+            print(f"[Resume] Model weights saved to: {wandb_resume_path}")
+
+            # ✅ Log that weights were saved
+            self.wandb.log({"weights_saved_epoch": epoch + 1}, step=epoch)
+
+        # Log current epoch
+        self.wandb.log({"epoch_logged": epoch + 1}, step=epoch)
+
+        # Save last epoch for resuming 
+        self.wandb.config.update({"last_epoch": epoch + 1}, allow_val_change=True)
