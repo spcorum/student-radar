@@ -93,7 +93,7 @@ def main():
     gan, batch_size, epochs, gan_config = build_gan()
 
     wandb.init(
-        project='student-generative-radar-gan-improved',
+        project='student-generative-radar',
         entity='spcorum',
         name='conditional-radar-gan-student',
         config=gan_config,
