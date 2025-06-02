@@ -1,9 +1,8 @@
-from random import random
 from tensorflow.keras import Model
 from tensorflow.keras.metrics import Mean
 import tensorflow as tf
 
-tf.random.set_seed(42)
+tf.random.set_seed(1729)
 
 
 class CWGANGP(Model):
@@ -22,7 +21,16 @@ class CWGANGP(Model):
         self.latent_dim = latent_dim
         self.d_steps = discriminator_extra_steps
         self.gp_weight = gp_weight
+        self.d_loss_tracker = tf.keras.metrics.Mean(name="d_loss")
+        self.g_loss_tracker = tf.keras.metrics.Mean(name="g_loss")
 
+    def call(self, inputs, training=False):
+        noise, labels = inputs
+        return self.generator(tf.concat([noise, labels], axis=-1))
+
+    @property
+    def metrics(self):
+        return [self.d_loss_tracker, self.g_loss_tracker]
 
     def compile(self, discriminator_optimizer, generator_optimizer, discriminator_loss_fn, generator_loss_fn):
         super(CWGANGP, self).compile()
@@ -64,11 +72,14 @@ class CWGANGP(Model):
         batch_size = tf.shape(real_signals)[0]
 
         # Made one channel with labels
+        # labels_discriminator_channel = tf.repeat(
+        #     labels_discriminator, repeats=[1024]
+        # )
+        # labels_discriminator_channel = tf.reshape(
+        #     labels_discriminator_channel, (-1, 1024, 1)
+        # )
         labels_discriminator_channel = tf.repeat(
-            labels_discriminator, repeats=[1024]
-        )
-        labels_discriminator_channel = tf.reshape(
-            labels_discriminator_channel, (-1, 1024, 1)
+            tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
         )
 
         # For each batch, we are going to perform the
@@ -151,47 +162,54 @@ class CWGANGP(Model):
 
         return {"discriminator_loss": d_loss, "generator_loss": g_loss}
 
-def test_step(self, X_batch):
-    real_signals, labels_generator, labels_discriminator = X_batch
+    def test_step(self, X_batch):
+        real_signals, labels_generator, labels_discriminator = X_batch
 
-    # Get the batch size
-    batch_size = tf.shape(real_signals)[0]
+        # Get the batch size
+        batch_size = tf.shape(real_signals)[0]
 
-    # Make one channel with labels
-    labels_discriminator_channel = tf.repeat(
-        labels_discriminator, repeats=[1024]
-    )
-    labels_discriminator_channel = tf.reshape(
-        labels_discriminator_channel, (-1, 1024, 1)
-    )
+        # Make one channel with labels
+        # labels_discriminator_channel = tf.repeat(
+        #     labels_discriminator, repeats=[1024]
+        # )
+        # labels_discriminator_channel = tf.reshape(
+        #     labels_discriminator_channel, (-1, 1024, 1)
+        # )
+        labels_discriminator_channel = tf.repeat(
+            tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
+        )  # (N, 1024, 1)
 
-    # Get the latent vector
-    random_latent = tf.random.normal(shape=(batch_size, self.latent_dim))
-    # Concatenate latent vectors with the labels
-    random_latent_labels = tf.concat(
-        [random_latent, labels_generator], axis=1
-    )
 
-    # Generate fake signals from the latent vector
-    fake_signals = self.generator(random_latent_labels, training=False)
-    # Concatenate generations with the labels
-    fake_signals_labels = tf.concat(
-        [fake_signals, labels_discriminator_channel], axis=2
-    )
-    # Concatenate real signals with the labels
-    real_signals_labels = tf.concat(
-        [real_signals, labels_discriminator_channel], axis=2
-    )
+        # Get the latent vector
+        random_latent = tf.random.normal(shape=(batch_size, self.latent_dim))
+        # Concatenate latent vectors with the labels
+        random_latent_labels = tf.concat(
+            [random_latent, labels_generator], axis=1
+        )
 
-    # Get the logits for the fake and real signals
-    fake_logits = self.discriminator(fake_signals_labels, training=False)
-    real_logits = self.discriminator(real_signals_labels, training=False)
+        # Generate fake signals from the latent vector
+        fake_signals = self.generator(random_latent_labels, training=False)
+        # Concatenate generations with the labels
+        fake_signals_labels = tf.concat(
+            [fake_signals, labels_discriminator_channel], axis=2
+        )
+        # Concatenate real signals with the labels
+        real_signals_labels = tf.concat(
+            [real_signals, labels_discriminator_channel], axis=2
+        )
 
-    # Calculate the discriminator and generator losses
-    d_cost = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
-    g_loss = self.g_loss_fn(fake_logits)
+        # Get the logits for the fake and real signals
+        fake_logits = self.discriminator(fake_signals_labels, training=False)
+        real_logits = self.discriminator(real_signals_labels, training=False)
 
-    return {
-        "val_discriminator_loss": d_cost,
-        "val_generator_loss": g_loss
-    }
+        # Calculate the discriminator and generator losses
+        d_loss = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
+        g_loss = self.g_loss_fn(fake_logits)
+
+        self.d_loss_tracker.update_state(d_loss)
+        self.g_loss_tracker.update_state(g_loss)
+
+        return {
+            "val_discriminator_loss": self.d_loss_tracker.result(),
+             "val_generator_loss": self.g_loss_tracker.result()
+        }

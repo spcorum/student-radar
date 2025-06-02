@@ -48,6 +48,8 @@ def load_weights(gan, weights_path):
 
 #     return dataset
 
+
+
 def main():
     gan, batch_size, epochs, gan_config = build_gan()
 
