@@ -28,6 +28,7 @@
 
 
 import math
+import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -84,7 +85,10 @@ from src import plot
 
 
 # Path to data
-PATH = "/Users/susanli/raw-radar-data-generation/paper/data/real/"
+# PATH = "/Users/susanli/raw-radar-data-generation/paper/data/real/"
+BASE_DIR = os.path.dirname(__file__)
+PATH = os.path.normpath(os.path.join(BASE_DIR, '..', '..','..', 'data', 'real'))
+
 
 try:
     from src import Signal_Processing as sp
@@ -102,7 +106,7 @@ fileProcessed = PATH + "RadarLog/Dados Processados/EXP_16_C/"
 # ------------------------- Raw-Data Paths -------------------------- #
 # ------------------------------------------------------------------- #
 
-file = PATH + "EXP_17_M.h5"
+file = os.path.join(PATH, 'EXP_17_M.h5')
 
 # ------------------------------------------------------------------- #
 # -------------------- File name to record -------------------------- #
@@ -144,6 +148,20 @@ radar.gen_Cube(0)
 RP = radar.range_Profile()["Data"]
 RDImg = radar.range_Doppler()["Data"]
 RAimg = radar.range_Azimuth()["Data"]
+
+# print(dir(radar))
+print(radar._originalCube.keys())
+
+cube = np.array(radar._originalCube['data'])
+print("Radar cube shape:", cube.shape)
+print("Sampling frequency (fs):", radar._attrs['fs'], "Hz")
+print("Total chirps:", radar.db['Chn1'].shape)
+print("NLoop (chirps per frame):", radar._attrs['nLoop'])
+print("Total frames (cubes):", int(radar._attrs['maxFrm']))
+
+print(f"[LOG] RP shape: {RP.shape}")  # for Range-Doppler
+print(f"[LOG] RA image shape: {RAimg.shape}")  # for Range-Azimuth
+print(f"[LOG] RD image shape: {RDImg.shape}")  # for Range-Doppler
 
 # Gets object on each image
 target_dict = detector_blind_spot.detect(RDImg, RAimg)
