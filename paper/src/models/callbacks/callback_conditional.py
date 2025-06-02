@@ -147,8 +147,7 @@ class WandbCallbackGANConditional(Callback):
                 fake_signal = self.model.generator([dummy_noise, dummy_label])
 
                 dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
-                disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
-                _ = self.model.discriminator(disc_input)
+                _ = self.model.discriminator([fake_signal, dummy_cond])
 
                 print("[INFO] Submodels are initialized and ready for saving.")
         except Exception as e:

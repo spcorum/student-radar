@@ -173,7 +173,7 @@ def main():
         initial_epoch=initial_epoch,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, WandbCallbackGANConditional(real_sample)]
+        callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, WandbCallbackGANConditional(wandb_module=wandb, real_sample=real_sample)]
     )
 
 if __name__ == '__main__':

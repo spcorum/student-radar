@@ -142,7 +142,7 @@ def build_discriminator(input_shape, label_dim=1):
 
 def build_gan():
     BATCH_SIZE = 32
-    EPOCHS = 1000
+    EPOCHS = 2
     CODINGS_SIZE = 100
     SIGNAL_LENGTH = 1024
     NUM_CHANNELS = 16

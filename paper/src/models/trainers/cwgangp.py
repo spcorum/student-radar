@@ -47,20 +47,28 @@ class CWGANGP(Model):
         interpolated = real_images + alpha * diff
 
         # interpolated shape: (batch_size, 1024, signal_dim + label_dim)
-        signal_dim = self.discriminator.input_shape[0][-1] - 1  # assuming label_dim = 1
+        # signal_dim = self.discriminator.input_shape[0][-1] - 1  # assuming label_dim = 1
+        signal_dim = tf.shape(real_images)[-1] - 1
         signal_part = interpolated[:, :, :signal_dim]
         label_part = interpolated[:, :, signal_dim:]
         
         with tf.GradientTape() as gp_tape:
-            gp_tape.watch(interpolated)
+            # gp_tape.watch(interpolated)
             # 1. Get the discriminator output for this interpolated image.
             # pred = self.discriminator(interpolated, training=True)
+            # pred = self.discriminator([signal_part, label_part], training=True)
+            gp_tape.watch([signal_part, label_part])
             pred = self.discriminator([signal_part, label_part], training=True)
 
+        grads = gp_tape.gradient(pred, [signal_part, label_part])
+        grad_signal, grad_label = grads
+        grads_combined = tf.concat([grad_signal, grad_label], axis=-1)
+
+        norm = tf.sqrt(tf.reduce_sum(tf.square(grads_combined), axis=[1, 2]) + 1e-12)
         # 2. Calculate the gradients w.r.t to this interpolated image.
-        grads = gp_tape.gradient(pred, [interpolated])[0]
+        # grads = gp_tape.gradient(pred, [interpolated])[0]
         # 3. Calculate the norm of the gradients.
-        norm = tf.sqrt(tf.reduce_sum(tf.square(grads), axis=[1, 2]))
+        # norm = tf.sqrt(tf.reduce_sum(tf.square(grads), axis=[1, 2]))
         gp = tf.reduce_mean((norm - 1.0) ** 2)
 
         return gp
@@ -156,13 +164,13 @@ class CWGANGP(Model):
         )
         with tf.GradientTape() as tape:
             # Generate fake images using the generator
-            generated_signals = self.generator(random_latent_labels, training=True)
+            generated_signals = self.generator([random_latent, labels_generator], training=True)
             # Concat generations with the labels
             generated_signals_labels = tf.concat(
                 [generated_signals, labels_discriminator_channel], axis=2
             )
             # Get the discriminator logits for fake images
-            gen_img_logits = self.discriminator(generated_signals_labels, training=True)
+            gen_img_logits = self.discriminator([generated_signals, labels_discriminator_channel], training=True)
             # Calculate the generator loss
             g_loss = self.g_loss_fn(gen_img_logits)
 
