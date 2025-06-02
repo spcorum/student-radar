@@ -35,10 +35,23 @@ save_prerpocessed_chirps_labels.ipynb
 ```
 This notebook will parse the data to numpy array and apply the change of scales. At the end of the execution will have one `.npy` file with the chirps data and other with the labels.
 
-### Install tensorflow-addons 
+### Install tensorflow-addons and wandb
 Run this to install tensorflow-addons, which as the SpectralNorm layer.
 ```console
 pip install tensorflow-addons
+pip install wandb
+```
+
+### Log into wandb
+Log into wandb account. API key is 85019a9c3b05de9fa0211a19fd654750ad845f1f
+```console
+wandb login
+```
+
+Run this to install tensorflow-addons, which as the SpectralNorm layer.
+```console
+pip install tensorflow-addons
+pip install wandb
 ```
 
 ### Training the model
@@ -58,4 +71,4 @@ python src/generate/save_conditional.py
 To save RA maps as png files.
 ```console
 python src/generate/save_ramaps.py
-```
+``
