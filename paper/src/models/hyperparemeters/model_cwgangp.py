@@ -148,30 +148,8 @@ def build_gan():
     NUM_CHANNELS = 16
     LABEL_DIM = 1
 
-    generator = Sequential([
-        Dense(4 * 256, input_shape=(CODINGS_SIZE+1,)),  # Added 1 here to have correct shape
-        Reshape([4, 256]),
-        ReLU(),
-        Conv1DTranspose(128, kernel_size=25, strides=4, padding='same', activation='relu'),
-        Conv1DTranspose(64, kernel_size=25, strides=4, padding='same', activation='relu', ),
-        Conv1DTranspose(32, kernel_size=25, strides=4, padding='same', activation='relu', ),
-        Conv1DTranspose(16, kernel_size=25, strides=4, padding='same', activation='tanh', )
-    ], name='generator')
-
-    discriminator = Sequential([
-        # InputLayer((1024, 17)),
-        # Conv1D(32, kernel_size=25, strides=4, padding='same',  input_shape=[1024, 16]),  # Is there a shape mismatch here? Original model in repo had it this way
-        Conv1D(32, kernel_size=25, strides=4, padding='same',  input_shape=[1024, 17]),  # Is there a shape mismatch here? Original model in repo had it this way
-        LeakyReLU(0.2),
-        Conv1D(64, kernel_size=25, strides=4, padding='same'),
-        LeakyReLU(0.2),
-        Conv1D(128, kernel_size=25, strides=4, padding='same'),
-        LeakyReLU(0.2),
-        Conv1D(256, kernel_size=25, strides=4, padding='same'),
-        LeakyReLU(0.2),
-        Flatten(),
-        Dense(1, activation='linear'),
-    ], name='discriminator')
+    generator = build_generator(CODINGS_SIZE, LABEL_DIM)
+    discriminator = build_discriminator(input_shape=(SIGNAL_LENGTH, NUM_CHANNELS), label_dim=LABEL_DIM)
 
     gan = CWGANGP(discriminator, generator, CODINGS_SIZE, discriminator_extra_steps=5)
 
@@ -208,6 +186,6 @@ def build_gan():
         },
     }
 
-    gan.build(input_shape=[(None, CODINGS_SIZE), (None, 1)])  # Do we need this?
+    # gan.build(input_shape=[(None, CODINGS_SIZE), (None, 1)])  # Do we need this?
 
     return gan, BATCH_SIZE, EPOCHS, gan_config
