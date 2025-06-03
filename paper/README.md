@@ -55,9 +55,14 @@ pip install wandb
 ```
 
 ### Training the model
-Use thte follow script to train the model.
+Use the follow script to train the student model.
 ```console
-python src/models/trainings/train_conditional.py
+!python src/models/trainings/train_conditional.py --model_type student
+```
+And for the original model
+Use the follow script to train the student model.
+```console
+!python src/models/trainings/train_conditional.py --model_type original
 ```
 This code uses the Weights & Bias API.
 
