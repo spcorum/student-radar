@@ -243,15 +243,16 @@ class WandbCallbackGANConditional(Callback):
             tf.random.set_seed(epoch)
             dummy_noise = tf.random.normal((1, self.model.latent_dim))
             dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
+            dummy_cond = tf.zeros((1, 1024, 1)) 
 
             if self.model_type == "student":
-                gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
                 fake_signal = self.model.generator([dummy_noise, dummy_label])
+                _ = self.model.discriminator([fake_signal, dummy_cond])
             else:  # original
-                fake_signal = self.model.generator([dummy_noise, dummy_label])
-
-            dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
-            _ = self.model.discriminator([fake_signal, dummy_cond])
+                gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+                fake_signal = self.model.generator(gen_input)
+                disc_input = tf.concat([fake_signal, dummy_cond], axis=-1)
+                _ = self.model.discriminator(disc_input)
 
             print("[INFO] Submodels are initialized and ready for saving.")
         except Exception as e:
