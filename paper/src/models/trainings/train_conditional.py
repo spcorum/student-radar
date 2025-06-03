@@ -111,6 +111,7 @@ def main(model_type="student"):
             "model_type": model_type 
         },
         resume='allow',
+        api_key='85019a9c3b05de9fa0211a19fd654750ad845f1f'
     )
 
     # if wandb.run.resumed:
