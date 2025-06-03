@@ -98,7 +98,7 @@ class WandbCallbackGANConditional(Callback):
             "similarity/psd_corr_mean": float(np.mean(corr_list)),
             "similarity/psd_corr_std": float(np.std(corr_list)),
             "epoch": epoch
-        })
+        }, step=epoch)
 
     def log_similarity_metrics(self, real, fake, epoch):
         """
@@ -218,15 +218,16 @@ class WandbCallbackGANConditional(Callback):
             'val/discriminator_loss': logs.get('val_discriminator_loss'),
             'val/generator_loss': logs.get('val_generator_loss'),
             'generations': self.wandb.Image(fig)
-        })
+
+        }, step=epoch)
         plt.tight_layout()
         plt.close(fig)
 
         # if real sample is passed in, log comparision metrics
         if self.real_sample is not None:
-            self.log_channelwise_statistics(self.real_sample, generations, epoch)
-            self.log_psd(self.real_sample, generations, epoch)
-            self.log_similarity_metrics(self.real_sample, generations, epoch)
+            self.log_channelwise_statistics(self.real_sample, generations, step=epoch)
+            self.log_psd(self.real_sample, generations, step=epoch)
+            self.log_similarity_metrics(self.real_sample, generations, step=epoch)
 
         # *** SAVE MODEL WEIGHTS ***
         # Ensure model is built before saving
