@@ -30,7 +30,7 @@ def generator_loss(fake_img):
 
 def build_gan():
     BATCH_SIZE = 32
-    EPOCHS = 1000
+    EPOCHS = 1
 
     CODINGS_SIZE = 100
 
@@ -79,7 +79,8 @@ def build_gan():
         _ = discriminator(disc_input)
 
         # Build full model by calling once
-        _ = gan([dummy_noise, dummy_label])
+        gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+        _ = gan(gen_input)
 
         print("[INFO] Generator and discriminator successfully built.")
     except Exception as e:
