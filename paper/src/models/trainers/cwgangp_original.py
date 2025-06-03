@@ -7,15 +7,8 @@ tf.random.set_seed(1729)
 
 class CWGANGPOriginal(Model):
 
-    def __init__(
-        self,
-        discriminator,
-        generator,
-        latent_dim,
-        discriminator_extra_steps=3,
-        gp_weight=10.0,
-    ):
-        super(CWGANGPOriginal, self).__init__()
+    def __init__(self, discriminator, generator, latent_dim, discriminator_extra_steps=3, gp_weight=10.0, **kwargs):
+        super().__init__(**kwargs)
         self.discriminator = discriminator
         self.generator = generator
         self.latent_dim = latent_dim
@@ -24,6 +17,18 @@ class CWGANGPOriginal(Model):
         self.d_loss_tracker = tf.keras.metrics.Mean(name="d_loss")
         self.g_loss_tracker = tf.keras.metrics.Mean(name="g_loss")
 
+    def get_config(self):
+        return {
+            "latent_dim": self.latent_dim,
+            "discriminator_extra_steps": self.d_steps,
+            "gp_weight": self.gp_weight,
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        # Dummy models are placeholders
+        return cls(generator=None, discriminator=None, **config)
+
     def call(self, inputs, training=False):
         return self.generator(inputs, training=training)
 
@@ -31,7 +36,7 @@ class CWGANGPOriginal(Model):
     def metrics(self):
         return [self.d_loss_tracker, self.g_loss_tracker]
 
-    def compile(self, discriminator_optimizer, generator_optimizer, discriminator_loss_fn, generator_loss_fn):
+    def compile(self, discriminator_optimizer, generator_optimizer, discriminator_loss_fn, generator_loss_fn, weighted_metrics=[]):
         super(CWGANGPOriginal, self).compile()
         self.d_optimizer = discriminator_optimizer
         self.g_optimizer = generator_optimizer
@@ -174,8 +179,8 @@ class CWGANGPOriginal(Model):
 
         self.d_loss_tracker.update_state(d_loss)
         self.g_loss_tracker.update_state(g_loss)
-        self.add_metric(d_loss, name="discriminator_loss", aggregation="mean")
-        self.add_metric(g_loss, name="generator_loss", aggregation="mean")
+        #self.add_metric(d_loss, name="discriminator_loss", aggregation="mean")
+        #self.add_metric(g_loss, name="generator_loss", aggregation="mean")
         return {
             "discriminator_loss": self.d_loss_tracker.result(),
             "generator_loss": self.g_loss_tracker.result()
@@ -227,8 +232,8 @@ class CWGANGPOriginal(Model):
 
         self.d_loss_tracker.update_state(d_loss)
         self.g_loss_tracker.update_state(g_loss)
-        self.add_metric(d_loss, name="val_discriminator_loss", aggregation="mean")
-        self.add_metric(g_loss, name="val_generator_loss", aggregation="mean")
+        #self.add_metric(d_loss, name="val_discriminator_loss", aggregation="mean")
+        #self.add_metric(g_loss, name="val_generator_loss", aggregation="mean")
         return {
             "discriminator_loss": self.d_loss_tracker.result(),
             "generator_loss": self.g_loss_tracker.result()
