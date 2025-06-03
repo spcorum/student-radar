@@ -7,15 +7,8 @@ tf.random.set_seed(1729)
 
 class CWGANGP(Model):
 
-    def __init__(
-        self,
-        discriminator,
-        generator,
-        latent_dim,
-        discriminator_extra_steps=3,
-        gp_weight=10.0,
-    ):
-        super(CWGANGP, self).__init__()
+   def __init__(self, discriminator, generator, latent_dim, discriminator_extra_steps=3, gp_weight=10.0, **kwargs):
+        super().__init__(**kwargs)
         self.discriminator = discriminator
         self.generator = generator
         self.latent_dim = latent_dim
@@ -24,15 +17,26 @@ class CWGANGP(Model):
         self.d_loss_tracker = tf.keras.metrics.Mean(name="d_loss")
         self.g_loss_tracker = tf.keras.metrics.Mean(name="g_loss")
 
+    def get_config(self):
+        return {
+            "latent_dim": self.latent_dim,
+            "discriminator_extra_steps": self.d_steps,
+            "gp_weight": self.gp_weight,
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(generator=None, discriminator=None, **config)
+
     def call(self, inputs, training=False):
         noise, labels = inputs
-        return self.generator(tf.concat([noise, labels], axis=-1))
+        return self.generator([noise, labels], training=training)
 
     @property
     def metrics(self):
         return [self.d_loss_tracker, self.g_loss_tracker]
 
-    def compile(self, discriminator_optimizer, generator_optimizer, discriminator_loss_fn, generator_loss_fn):
+    def compile(self, discriminator_optimizer, generator_optimizer, discriminator_loss_fn, generator_loss_fn,weighted_metrics=[]):
         super(CWGANGP, self).compile()
         self.d_optimizer = discriminator_optimizer
         self.g_optimizer = generator_optimizer
@@ -77,6 +81,18 @@ class CWGANGP(Model):
         gp = tf.reduce_mean((norm - 1.0) ** 2)
 
         return gp
+
+    def predict(self, noise, labels, training=False):
+        """
+        Inputs:
+            noise (N,L,C)
+            labels (N,)
+            training - wether to run generator in training mode
+
+        Outputs:
+            Tensor of generated radar signals: shape (batch_size, 1024, 16)
+        """
+        return self.generator([noise, labels],, training=training)
 
 
     def train_step(self, X_batch):
@@ -186,7 +202,14 @@ class CWGANGP(Model):
             zip(gen_gradient, self.generator.trainable_variables)
         )
 
-        return {"discriminator_loss": d_loss, "generator_loss": g_loss}
+        rself.d_loss_tracker.update_state(d_loss)
+        self.g_loss_tracker.update_state(g_loss)
+        #self.add_metric(d_loss, name="discriminator_loss", aggregation="mean")
+        #self.add_metric(g_loss, name="generator_loss", aggregation="mean")
+        return {
+            "discriminator_loss": self.d_loss_tracker.result(),
+            "generator_loss": self.g_loss_tracker.result()
+        }
 
     def test_step(self, X_batch):
         real_signals, labels_generator, labels_discriminator = X_batch
@@ -232,10 +255,12 @@ class CWGANGP(Model):
         d_loss = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
         g_loss = self.g_loss_fn(fake_logits)
 
+
         self.d_loss_tracker.update_state(d_loss)
         self.g_loss_tracker.update_state(g_loss)
-
+        #self.add_metric(d_loss, name="val_discriminator_loss", aggregation="mean")
+        #self.add_metric(g_loss, name="val_generator_loss", aggregation="mean")
         return {
-            "val_discriminator_loss": self.d_loss_tracker.result(),
-             "val_generator_loss": self.g_loss_tracker.result()
-        }
+            "discriminator_loss": self.d_loss_tracker.result(),
+            "generator_loss": self.g_loss_tracker.result()
+    }
