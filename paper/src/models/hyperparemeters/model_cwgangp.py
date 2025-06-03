@@ -6,7 +6,7 @@ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '
 
 #sys.path.append('./src/models/trainers')
 
-from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, InputLayer, Concatenate, LayerNormalization, Add
+from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
@@ -15,9 +15,9 @@ from tensorflow_addons.layers import SpectralNormalization
 
 from cwgangp import CWGANGP
 
-#def call(self, inputs):
-#    noise, labels = inputs
-#    return self.generator(tf.concat([noise, labels], axis=1))
+# def call(self, inputs):
+#     noise, labels = inputs
+#     return self.generator(tf.concat([noise, labels], axis=1))
 
 def discriminator_loss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
@@ -148,9 +148,30 @@ def build_gan():
     NUM_CHANNELS = 16
     LABEL_DIM = 1
 
-    generator = build_generator(codings_size = CODINGS_SIZE, label_dim = LABEL_DIM)
+    generator = Sequential([
+        Dense(4 * 256, input_shape=(CODINGS_SIZE+1,)),  # Added 1 here to have correct shape
+        Reshape([4, 256]),
+        ReLU(),
+        Conv1DTranspose(128, kernel_size=25, strides=4, padding='same', activation='relu'),
+        Conv1DTranspose(64, kernel_size=25, strides=4, padding='same', activation='relu', ),
+        Conv1DTranspose(32, kernel_size=25, strides=4, padding='same', activation='relu', ),
+        Conv1DTranspose(16, kernel_size=25, strides=4, padding='same', activation='tanh', )
+    ], name='generator')
 
-    discriminator = build_discriminator(input_shape=(SIGNAL_LENGTH, NUM_CHANNELS), label_dim=LABEL_DIM)
+    discriminator = Sequential([
+        # InputLayer((1024, 17)),
+        # Conv1D(32, kernel_size=25, strides=4, padding='same',  input_shape=[1024, 16]),  # Is there a shape mismatch here? Original model in repo had it this way
+        Conv1D(32, kernel_size=25, strides=4, padding='same',  input_shape=[1024, 17]),  # Is there a shape mismatch here? Original model in repo had it this way
+        LeakyReLU(0.2),
+        Conv1D(64, kernel_size=25, strides=4, padding='same'),
+        LeakyReLU(0.2),
+        Conv1D(128, kernel_size=25, strides=4, padding='same'),
+        LeakyReLU(0.2),
+        Conv1D(256, kernel_size=25, strides=4, padding='same'),
+        LeakyReLU(0.2),
+        Flatten(),
+        Dense(1, activation='linear'),
+    ], name='discriminator')
 
     gan = CWGANGP(discriminator, generator, CODINGS_SIZE, discriminator_extra_steps=5)
 
@@ -187,6 +208,6 @@ def build_gan():
         },
     }
 
-    gan.build(input_shape=[(None, CODINGS_SIZE), (None, LABEL_DIM)])
+    gan.build(input_shape=[(None, CODINGS_SIZE), (None, 1)])  # Do we need this?
 
     return gan, BATCH_SIZE, EPOCHS, gan_config
