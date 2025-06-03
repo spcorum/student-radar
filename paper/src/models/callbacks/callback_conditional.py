@@ -1,20 +1,25 @@
 from scipy.signal import welch
 from scipy.stats import pearsonr
+from scipy.stats import ks_2samp
+from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import Callback
 import os
 import wandb
 import numpy as np
 import tensorflow as tf
+import glob
 
 
 class WandbCallbackGANConditional(Callback):
 
-    def __init__(self, wandb_module, real_sample=None):
+    def __init__(self, wandb_module, real_sample=None, save_subdir="student", model_type="student"):
         self.wandb = wandb_module
         self.real_sample = real_sample
+        self.model_type = model_type
         self.range_bins = np.arange(1024)
-        self.model_path = f'./checkpoints/model-{wandb_module.run.id}'
+        # self.model_path = f'./checkpoints/model-{wandb_module.run.id}'
+        self.model_path = os.path.join("./checkpoints", save_subdir, f"model-{wandb_module.run.id}")
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
         super().__init__()
@@ -88,14 +93,98 @@ class WandbCallbackGANConditional(Callback):
 
         # logging
         self.wandb.log({
-            "psd_mse_mean": float(np.mean(mse_list)),
-            "psd_mse_std": float(np.std(mse_list)),
-            "psd_corr_mean": float(np.mean(corr_list)),
-            "psd_corr_std": float(np.std(corr_list)),
+            "similarity/psd_mse_mean": float(np.mean(mse_list)),
+            "similarity/psd_mse_std": float(np.std(mse_list)),
+            "similarity/psd_corr_mean": float(np.mean(corr_list)),
+            "similarity/psd_corr_std": float(np.std(corr_list)),
             "epoch": epoch
         })
 
+    def log_similarity_metrics(self, real, fake, epoch):
+        """
+        Calculates and logs similarity metrics between real and fake radar signals.
+        Metrics:
+            - PSD L2 similarity
+            - MMD using RBF kernel
+            - Average KS test p-value across channels
+        """
+        real = real.numpy()
+        fake = fake.numpy()
+        N, L, C = real.shape  # number of samples, length of signal, number of channels
 
+        # Calculate PSD_L2_Similarity
+        psd_l2_scores = []
+        for i in range(C):
+            # Compute PSD for real and fake signals on this channel
+            freqs_real, psd_real = welch(real[:, :, i], fs=20000000.0, axis=1)
+            freqs_fake, psd_fake = welch(fake[:, :, i], fs=20000000.0, axis=1)
+
+            # Average PSD across samples
+            psd_real_avg = np.mean(psd_real, axis=0)
+            psd_fake_avg = np.mean(psd_fake, axis=0)
+
+            # Compute L2 distance between PSDs
+            l2_diff = np.sqrt(np.sum((psd_real_avg - psd_fake_avg) ** 2))
+            psd_l2_scores.append(l2_diff)
+
+        psd_l2_mean = float(np.mean(psd_l2_scores))  # Final score
+
+        # Calculate MMD_RBF
+        # Flatten each sample into a single vector
+        real_flat = real.reshape((N, -1))
+        fake_flat = fake.reshape((N, -1))
+
+        # Define a function to compute RBF kernel
+        def rbf_kernel(X, Y, sigma=1.0):
+            # Squared Euclidean distance
+            dists = cdist(X, Y, metric='sqeuclidean')
+            return np.exp(-dists / (2 * sigma ** 2))
+
+        # Compute kernel matrices
+        K_xx = rbf_kernel(real_flat, real_flat)
+        K_yy = rbf_kernel(fake_flat, fake_flat)
+        K_xy = rbf_kernel(real_flat, fake_flat)
+
+        # MMD formula
+        mmd = K_xx.mean() + K_yy.mean() - 2 * K_xy.mean()
+        mmd_rbf = float(mmd)
+
+        # Calculate KS_Avg_p_value
+        ks_p_values = []
+        for i in range(C):
+            # Flatten the signal data for KS test
+            real_vals = real[:, :, i].flatten()
+            fake_vals = fake[:, :, i].flatten()
+
+            # KS test between real and fake
+            stat, p_value = ks_2samp(real_vals, fake_vals)
+            ks_p_values.append(p_value)
+
+        # Average p-value (higher means more similar distributions)
+        ks_avg_p = float(np.mean(ks_p_values))
+
+        # og to WandB 
+        self.wandb.log({
+            "similarity/psd_l2_mean": psd_l2_mean,
+            "similarity/mmd_rbf": mmd_rbf,
+            "similarity/ks_avg_p_value": ks_avg_p
+        }, step=epoch)
+
+        print(f"[Log] Similarity metrics at epoch {epoch} -> PSD_L2: {psd_l2_mean:.4f}, MMD: {mmd_rbf:.4f}, KS_p: {ks_avg_p:.4f}")
+
+    def cleanup_old_backups(self, max_backups=5):
+        # Match files like "backup-epoch-*.h5"
+        backup_files = sorted(glob.glob(os.path.join(self.model_path, "backup-epoch-*.h5")))
+
+        if len(backup_files) > max_backups:
+            # Delete oldest files
+            files_to_delete = backup_files[:-max_backups]
+            for file_path in files_to_delete:
+                try:
+                    os.remove(file_path)
+                    print(f"[Cleanup] Deleted old backup: {file_path}")
+                except Exception as e:
+                    print(f"[Warning] Could not delete {file_path}: {e}")
     
 
     def on_epoch_end(self, epoch, logs=None):
@@ -104,10 +193,12 @@ class WandbCallbackGANConditional(Callback):
         noise = tf.random.normal(shape=(3, 100))
         labels = tf.cast(tf.reshape(tf.linspace(23, 5, 3), shape=(3, 1)), tf.float32)
         labels = (labels - 10.981254577636719) / 7.1911773681640625
-        # noise_and_labels = tf.concat([noise, labels], axis=1)
 
-        # generations = self.model.generator([noise_and_labels])
-        generations = self.model.generator([noise, labels])
+        if self.model_type == "student":
+             generations = self.model.generator([noise, labels])
+        else:  # original
+            noise_and_labels = tf.concat([noise, labels], axis=1)
+            generations = self.model.generator(noise_and_labels)
 
         a, b = -1, 1
         data_min, data_max = -2444.0, 2544.0
@@ -135,21 +226,25 @@ class WandbCallbackGANConditional(Callback):
         if self.real_sample is not None:
             self.log_channelwise_statistics(self.real_sample, generations, epoch)
             self.log_psd(self.real_sample, generations, epoch)
+            self.log_similarity_metrics(self.real_sample, generations, epoch)
 
         # *** SAVE MODEL WEIGHTS ***
         # Ensure model is built before saving
         try:
-                tf.random.set_seed(epoch)
-                dummy_noise = tf.random.normal((1, self.model.latent_dim))
-                dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
-                # gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
-                # fake_signal = self.model.generator(gen_input)
+            tf.random.set_seed(epoch)
+            dummy_noise = tf.random.normal((1, self.model.latent_dim))
+            dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
+
+            if self.model_type == "student":
+                gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+                fake_signal = self.model.generator(gen_input)
+            else:  # original
                 fake_signal = self.model.generator([dummy_noise, dummy_label])
 
-                dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
-                _ = self.model.discriminator([fake_signal, dummy_cond])
+            dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
+            _ = self.model.discriminator([fake_signal, dummy_cond])
 
-                print("[INFO] Submodels are initialized and ready for saving.")
+            print("[INFO] Submodels are initialized and ready for saving.")
         except Exception as e:
                 print(f"[Warning] Could not build submodels before saving: {e}")
                 return
@@ -180,3 +275,11 @@ class WandbCallbackGANConditional(Callback):
 
         # Save last epoch for resuming 
         self.wandb.config.update({"last_epoch": epoch + 1}, allow_val_change=True)
+
+        # Save generator model
+        gen_save_path = os.path.join(self.model_path, f"generator-epoch-{epoch+1}")
+        self.model.generator.save(f"{gen_save_path}.h5")
+        print(f"[Saved] Generator model saved to: {gen_save_path}")
+
+        # Clean up old backups
+        self.cleanup_old_backups(max_backups=10)
