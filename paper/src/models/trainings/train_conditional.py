@@ -4,14 +4,13 @@ import gc
 import numpy as np
 import tensorflow as tf
 import wandb
+import argparse
 from tensorflow.keras.callbacks import ModelCheckpoint
+from callback_conditional import WandbCallbackGANConditional
 
 # Append custom module paths
 sys.path.append('models/callbacks/')
 sys.path.append('models/hyperparemeters/')
-
-from callback_conditional import WandbCallbackGANConditional
-from model_cwgangp import build_gan
 
 # Modern GPU setup
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -89,26 +88,42 @@ def load_dataset_labeled(path_data, path_label, batch_size, validation_split=0.2
 
     return train_dataset, val_dataset
 
-def main():
+def main(model_type="student"):
+
+    if model_type == "student":
+        from model_cwgangp import build_gan
+        save_subdir = "student"
+    elif model_type == "original":
+        from model_cwgangp_original import build_gan
+        save_subdir = "original"
+    else:
+        raise ValueError("model_type must be 'student' or 'original'")
+    
+    # Get the model
     gan, batch_size, epochs, gan_config = build_gan()
 
     wandb.init(
         project='student-generative-radar',
         entity='spcorum',
-        name='conditional-radar-gan-student',
-        config=gan_config,
-        resume='allow',  # enable if resuming run
-        # id="19fh3wpc"
+        name=f'conditional-radar-gan-{model_type}', 
+        config={
+            **gan_config,
+            "model_type": model_type 
+        },
+        resume='allow',
     )
 
-    if wandb.run.resumed:
-        print('Resuming Run...')
-        model_file = wandb.restore(f'model-{wandb.run.id}.h5').name
-        gan = load_weights(gan, model_file)
+    # if wandb.run.resumed:
+    #     print('Resuming Run...')
+    #     model_file = wandb.restore(f'model-{wandb.run.id}.h5').name
+    #     gan = load_weights(gan, model_file)
     
     os.chdir('/content/drive/MyDrive/student-radar/paper')
 
-    checkpoint_file = f'model-{wandb.run.id}.h5'
+    #checkpoint_file = f'model-{wandb.run.id}.h5'
+    checkpoint_dir = os.path.join("checkpoints", save_subdir)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    checkpoint_file = os.path.join(checkpoint_dir, f"model-{wandb.run.id}.h5")
 
     initial_epoch = 0
     if wandb.run.resumed:
@@ -132,7 +147,7 @@ def main():
     print(f'\n\n--------------------- Run: {wandb.run.name} ---------------------------\n\n')
 
     gen_loss_cb_train = ModelCheckpoint(
-        filepath=f'model-{wandb.run.id}.h5',
+        filepath=checkpoint_file,
         save_weights_only=True,
         save_best_only=True,
         monitor='generator_loss',
@@ -140,7 +155,7 @@ def main():
     )
 
     disc_loss_cb_train = ModelCheckpoint(
-        filepath=f'model-{wandb.run.id}.h5',
+        filepath=checkpoint_file,
         save_weights_only=True,
         save_best_only=True,
         monitor='discriminator_loss',
@@ -148,7 +163,7 @@ def main():
     )
 
     gen_loss_cb = ModelCheckpoint(
-        filepath=f'model-{wandb.run.id}.h5',
+        filepath=checkpoint_file,
         save_weights_only=True,
         save_best_only=True,
         monitor='val_generator_loss',
@@ -156,7 +171,7 @@ def main():
     )
 
     disc_loss_cb = ModelCheckpoint(
-        filepath=f'model-{wandb.run.id}.h5',
+        filepath=checkpoint_file,
         save_weights_only=True,
         save_best_only=True,
         monitor='val_discriminator_loss',
@@ -173,8 +188,14 @@ def main():
         initial_epoch=initial_epoch,
         epochs=epochs,
         batch_size=batch_size,
-        callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, WandbCallbackGANConditional(wandb_module=wandb, real_sample=real_sample)]
+        callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, 
+            WandbCallbackGANConditional(wandb_module=wandb, real_sample=real_sample,  
+            save_subdir=checkpoint_dir, model_type=model_type)
+        ]
     )
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', choices=['student', 'original'], default='student')
+    args = parser.parse_args()
+    main(model_type=args.model_type)
