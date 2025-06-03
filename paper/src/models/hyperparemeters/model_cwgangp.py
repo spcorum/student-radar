@@ -6,10 +6,11 @@ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '
 
 #sys.path.append('./src/models/trainers')
 
-from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU
+from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, Concatenate, Add, LayerNormalization
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
+
 import tensorflow as tf 
 from tensorflow_addons.layers import SpectralNormalization
 
@@ -142,7 +143,7 @@ def build_discriminator(input_shape, label_dim=1):
 
 def build_gan():
     BATCH_SIZE = 32
-    EPOCHS = 2
+    EPOCHS = 1
     CODINGS_SIZE = 100
     SIGNAL_LENGTH = 1024
     NUM_CHANNELS = 16

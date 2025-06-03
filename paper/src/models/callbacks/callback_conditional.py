@@ -131,14 +131,22 @@ class WandbCallbackGANConditional(Callback):
 
         # Calculate MMD_RBF
         # Flatten each sample into a single vector
-        real_flat = real.reshape((N, -1))
-        fake_flat = fake.reshape((N, -1))
+        real_flat = tf.reshape(real, [real.shape[0], -1])
+        fake_flat = tf.reshape(fake, [fake.shape[0], -1])
+
 
         # Define a function to compute RBF kernel
         def rbf_kernel(X, Y, sigma=1.0):
-            # Squared Euclidean distance
-            dists = cdist(X, Y, metric='sqeuclidean')
-            return np.exp(-dists / (2 * sigma ** 2))
+          X = real_flat.numpy()
+          Y = fake_flat.numpy()
+
+          if X.shape[1] != Y.shape[1]:
+            print(f"[ERROR] Shape mismatch: X={X.shape}, Y={Y.shape}")
+            return  # skip logging to prevent crash
+
+          # Squared Euclidean distance
+          dists = cdist(X, Y, metric='sqeuclidean')
+          return np.exp(-dists / (2 * sigma ** 2))
 
         # Compute kernel matrices
         K_xx = rbf_kernel(real_flat, real_flat)
@@ -225,9 +233,9 @@ class WandbCallbackGANConditional(Callback):
 
         # if real sample is passed in, log comparision metrics
         if self.real_sample is not None:
-            self.log_channelwise_statistics(self.real_sample, generations, step=epoch)
-            self.log_psd(self.real_sample, generations, step=epoch)
-            self.log_similarity_metrics(self.real_sample, generations, step=epoch)
+            self.log_channelwise_statistics(self.real_sample, generations, epoch=epoch)
+            self.log_psd(self.real_sample, generations, epoch=epoch)
+            self.log_similarity_metrics(self.real_sample, generations, epoch=epoch)
 
         # *** SAVE MODEL WEIGHTS ***
         # Ensure model is built before saving
@@ -238,7 +246,7 @@ class WandbCallbackGANConditional(Callback):
 
             if self.model_type == "student":
                 gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
-                fake_signal = self.model.generator(gen_input)
+                fake_signal = self.model.generator([dummy_noise, dummy_label])
             else:  # original
                 fake_signal = self.model.generator([dummy_noise, dummy_label])
 

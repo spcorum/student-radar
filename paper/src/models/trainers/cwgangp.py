@@ -7,7 +7,7 @@ tf.random.set_seed(1729)
 
 class CWGANGP(Model):
 
-   def __init__(self, discriminator, generator, latent_dim, discriminator_extra_steps=3, gp_weight=10.0, **kwargs):
+    def __init__(self, discriminator, generator, latent_dim, discriminator_extra_steps=3, gp_weight=10.0, **kwargs):
         super().__init__(**kwargs)
         self.discriminator = discriminator
         self.generator = generator
@@ -18,11 +18,11 @@ class CWGANGP(Model):
         self.g_loss_tracker = tf.keras.metrics.Mean(name="g_loss")
 
     def get_config(self):
-        return {
+      return {
             "latent_dim": self.latent_dim,
             "discriminator_extra_steps": self.d_steps,
             "gp_weight": self.gp_weight,
-        }
+      }
 
     @classmethod
     def from_config(cls, config):
@@ -92,7 +92,7 @@ class CWGANGP(Model):
         Outputs:
             Tensor of generated radar signals: shape (batch_size, 1024, 16)
         """
-        return self.generator([noise, labels],, training=training)
+        return self.generator([noise, labels], training=training)
 
 
     def train_step(self, X_batch):
@@ -202,7 +202,7 @@ class CWGANGP(Model):
             zip(gen_gradient, self.generator.trainable_variables)
         )
 
-        rself.d_loss_tracker.update_state(d_loss)
+        self.d_loss_tracker.update_state(d_loss)
         self.g_loss_tracker.update_state(g_loss)
         #self.add_metric(d_loss, name="discriminator_loss", aggregation="mean")
         #self.add_metric(g_loss, name="generator_loss", aggregation="mean")
@@ -237,7 +237,7 @@ class CWGANGP(Model):
         )
 
         # Generate fake signals from the latent vector
-        fake_signals = self.generator(random_latent_labels, training=False)
+        fake_signals = self.generator([random_latent, labels_generator], training=False)
         # Concatenate generations with the labels
         fake_signals_labels = tf.concat(
             [fake_signals, labels_discriminator_channel], axis=2
@@ -248,8 +248,8 @@ class CWGANGP(Model):
         )
 
         # Get the logits for the fake and real signals
-        fake_logits = self.discriminator(fake_signals_labels, training=False)
-        real_logits = self.discriminator(real_signals_labels, training=False)
+        fake_logits = self.discriminator([fake_signals, labels_discriminator_channel], training=False)
+        real_logits = self.discriminator([real_signals, labels_discriminator_channel], training=False)
 
         # Calculate the discriminator and generator losses
         d_loss = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)

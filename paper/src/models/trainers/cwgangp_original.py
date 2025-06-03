@@ -123,19 +123,19 @@ class CWGANGPOriginal(Model):
             )
             with tf.GradientTape() as tape:
                 # Generate fake images from the latent vector
-                fake_signals = self.generator(random_latent_labels, training=True)
+                fake_signals = self.generator([random_latent, labels_generator], training=True)
                 # Concat generations with the labels
                 fake_signals_labels = tf.concat(
                     [fake_signals, labels_discriminator_channel], axis=-1
                 )
                 # Get the logits for the fake images
-                fake_logits = self.discriminator(fake_signals_labels, training=True)
+                fake_logits = self.discriminator([fake_signals, labels_discriminator_channel], training=True)
                 # Concat real with the labels
                 real_signals_labels = tf.concat(
                     [real_signals, labels_discriminator_channel], axis=-1
                 )
                 # Get the logits for the real images
-                real_logits = self.discriminator(real_signals_labels, training=True)
+                real_logits = self.discriminator([real_signals, labels_discriminator_channel], training=True)
 
                 # Calculate the discriminator loss using the fake and real image logits
                 d_cost = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
@@ -160,13 +160,13 @@ class CWGANGPOriginal(Model):
         )
         with tf.GradientTape() as tape:
             # Generate fake images using the generator
-            generated_signals = self.generator(random_latent_labels, training=True)
+            generated_signals = self.generator([random_latent, labels_generator], training=True)
             # Concat generations with the labels
             generated_signals_labels = tf.concat(
                 [generated_signals, labels_discriminator_channel], axis=-1
             )
             # Get the discriminator logits for fake images
-            gen_img_logits = self.discriminator(generated_signals_labels, training=True)
+            gen_img_logits = self.discriminator([generated_signals, labels_discriminator_channel], training=True)
             # Calculate the generator loss
             g_loss = self.g_loss_fn(gen_img_logits)
 
@@ -212,7 +212,7 @@ class CWGANGPOriginal(Model):
         )
 
         # Generate fake signals from the latent vector
-        fake_signals = self.generator(random_latent_labels, training=False)
+        fake_signals = self.generator([random_latent, labels_generator], training=False)
         # Concatenate generations with the labels
         fake_signals_labels = tf.concat(
             [fake_signals, labels_discriminator_channel], axis=-1
@@ -223,8 +223,8 @@ class CWGANGPOriginal(Model):
         )
 
         # Get the logits for the fake and real signals
-        fake_logits = self.discriminator(fake_signals_labels, training=False)
-        real_logits = self.discriminator(real_signals_labels, training=False)
+        fake_logits = self.discriminator([fake_signals, labels_discriminator_channel], training=False)
+        real_logits = self.discriminator([real_signals, labels_discriminator_channel], training=False)
 
         # Calculate the discriminator and generator losses
         d_loss = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)

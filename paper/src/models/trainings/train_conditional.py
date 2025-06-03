@@ -6,11 +6,21 @@ import tensorflow as tf
 import wandb
 import argparse
 from tensorflow.keras.callbacks import ModelCheckpoint
-from callback_conditional import WandbCallbackGANConditional
 
-# Append custom module paths
-sys.path.append('models/callbacks/')
-sys.path.append('models/hyperparemeters/')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CALLBACKS_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, '..', 'callbacks'))
+TRAINERS_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, '..', 'trainers'))
+HYPERPARAMS_PATH = os.path.abspath(os.path.join(SCRIPT_DIR, '..', 'hyperparemeters'))
+
+sys.path.insert(0, CALLBACKS_PATH)
+sys.path.insert(0, TRAINERS_PATH)
+sys.path.insert(0, HYPERPARAMS_PATH)
+
+from callback_conditional import WandbCallbackGANConditional
+# # Append custom module paths
+# sys.path.append('models/callbacks/')
+# sys.path.append('models/hyperparemeters/')
 
 # Modern GPU setup
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -102,16 +112,18 @@ def main(model_type="student"):
     # Get the model
     gan, batch_size, epochs, gan_config = build_gan()
 
+    os.environ["WANDB_API_KEY"] = "85019a9c3b05de9fa0211a19fd654750ad845f1f"
+    wandb.login()
+
     wandb.init(
-        project='student-generative-radar',
-        entity='spcorum',
-        name=f'conditional-radar-gan-{model_type}', 
-        config={
-            **gan_config,
-            "model_type": model_type 
-        },
-        resume='allow',
-        api_key='85019a9c3b05de9fa0211a19fd654750ad845f1f'
+      project='student-generative-radar',
+      entity='spcorum',
+      name=f'conditional-radar-gan-{model_type}', 
+      config={
+        **gan_config,
+        "model_type": model_type 
+      },
+      resume='allow'
     )
 
     # if wandb.run.resumed:
@@ -189,6 +201,8 @@ def main(model_type="student"):
         initial_epoch=initial_epoch,
         epochs=epochs,
         batch_size=batch_size,
+        # steps_per_epoch=2,        
+        # validation_steps=1, 
         callbacks=[gen_loss_cb_train, disc_loss_cb_train, gen_loss_cb, disc_loss_cb, 
             WandbCallbackGANConditional(wandb_module=wandb, real_sample=real_sample,  
             save_subdir=checkpoint_dir, model_type=model_type)
