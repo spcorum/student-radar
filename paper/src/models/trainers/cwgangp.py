@@ -1,8 +1,32 @@
 from tensorflow.keras import Model
+from tensorflow.keras.layers import Wrapper
 from tensorflow.keras.metrics import Mean
 import tensorflow as tf
 
 tf.random.set_seed(1729)
+
+class SpectralNormalization(Wrapper):
+    def __init__(self, layer, power_iterations=1, **kwargs):
+        super(SpectralNormalization, self).__init__(layer, **kwargs)
+        self.power_iterations = power_iterations
+
+    def build(self, input_shape):
+        self.layer.build(input_shape)
+        self.w = self.layer.kernel
+        self.u = self.add_weight(shape=(1, self.w.shape[-1]), initializer='random_normal', trainable=False, name='sn_u')
+        super(SpectralNormalization, self).build()
+
+    def call(self, inputs):
+        w_reshaped = tf.reshape(self.w, [-1, self.w.shape[-1]])
+        u = self.u
+        for _ in range(self.power_iterations):
+            v = tf.nn.l2_normalize(tf.matmul(u, tf.transpose(w_reshaped)))
+            u = tf.nn.l2_normalize(tf.matmul(v, w_reshaped))
+        sigma = tf.matmul(tf.matmul(v, w_reshaped), tf.transpose(u))
+        w_bar = self.w / sigma
+        self.layer.kernel = w_bar
+        self.u.assign(u)
+        return self.layer(inputs)
 
 
 class CWGANGP(Model):

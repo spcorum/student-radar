@@ -6,19 +6,98 @@ sys.path.append(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '
 
 #sys.path.append('./src/models/trainers')
 
-from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, Concatenate, Add, LayerNormalization
+from tensorflow.keras.layers import Dense, Reshape, Flatten, Conv1DTranspose, ReLU, Conv1D, LeakyReLU, Concatenate, Add, LayerNormalization, Wrapper
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input, Model
+from tensorflow.keras import backend as K
+
 
 import tensorflow as tf 
-from tensorflow_addons.layers import SpectralNormalization
+#from tensorflow_addons.layers import SpectralNormalization
 
 from cwgangp import CWGANGP
 
 # def call(self, inputs):
 #     noise, labels = inputs
 #     return self.generator(tf.concat([noise, labels], axis=1))
+
+class SpectralNormalization(Wrapper):
+    def __init__(self, layer, power_iterations=1, **kwargs):
+        super().__init__(layer, **kwargs)
+        self.power_iterations = power_iterations
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        if not hasattr(self.layer, "kernel"):
+            raise ValueError("Wrapped layer must have a 'kernel' attribute")
+        self.w = self.layer.kernel
+        self.u = self.add_weight(
+            shape=(1, self.w.shape[-1]),
+            initializer="random_normal",
+            trainable=False,
+            name="sn_u"
+        )
+
+    def compute_spectral_norm(self):
+        w_reshaped = tf.reshape(self.w, [-1, self.w.shape[-1]])
+        u = self.u
+        for _ in range(self.power_iterations):
+            v = tf.math.l2_normalize(tf.matmul(u, tf.transpose(w_reshaped)))
+            u = tf.math.l2_normalize(tf.matmul(v, w_reshaped))
+        sigma = tf.matmul(tf.matmul(v, w_reshaped), tf.transpose(u))
+        self.u.assign(u)
+        return self.w / sigma
+
+    def call(self, inputs, training=None):
+        w_bar = self.compute_spectral_norm()
+
+        if isinstance(self.layer, tf.keras.layers.Dense):
+            output = tf.matmul(inputs, w_bar)
+            if self.layer.use_bias:
+                output = tf.nn.bias_add(output, self.layer.bias)
+            if self.layer.activation is not None:
+                return self.layer.activation(output)
+            return output
+
+        elif isinstance(self.layer, tf.keras.layers.Conv1D):
+            output = K.conv1d(
+                inputs,
+                w_bar,
+                strides=self.layer.strides[0],
+                padding=self.layer.padding.lower(),  # FIXED
+                data_format="channels_last",
+                dilation_rate=self.layer.dilation_rate[0],
+            )
+            if self.layer.use_bias:
+                output = tf.nn.bias_add(output, self.layer.bias)
+            if self.layer.activation is not None:
+                return self.layer.activation(output)
+            return output
+
+        elif isinstance(self.layer, tf.keras.layers.Conv2D):
+            output = K.conv2d(
+                inputs,
+                w_bar,
+                strides=self.layer.strides,
+                padding=self.layer.padding.upper(),
+                data_format="channels_last",
+                dilation_rate=self.layer.dilation_rate,
+            )
+            if self.layer.use_bias:
+                output = tf.nn.bias_add(output, self.layer.bias)
+            if self.layer.activation is not None:
+                return self.layer.activation(output)
+            return output
+
+        else:
+            raise NotImplementedError(f"SpectralNormalization not implemented for {type(self.layer)}")
+
+    def compute_output_shape(self, input_shape):
+        return self.layer.compute_output_shape(input_shape)
+
+    def compute_output_spec(self, inputs, training=None):
+        return self.layer.compute_output_spec(inputs)
 
 def discriminator_loss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
@@ -29,7 +108,6 @@ def discriminator_loss(real_img, fake_img):
 
 def generator_loss(fake_img):
     return -tf.reduce_mean(fake_img)
-
 
 def residual_block_1d_generator(x, filters, kernel_size=25, strides=1):
     """
@@ -141,9 +219,9 @@ def build_discriminator(input_shape, label_dim=1):
 
     return Model([signal_input, label_input], output, name='discriminator')
 
-def build_gan():
-    BATCH_SIZE = 32
-    EPOCHS = 1
+def build_gan(num_epochs=1, batch_size=32):
+    BATCH_SIZE = batch_size
+    EPOCHS = num_epochs
     CODINGS_SIZE = 100
     SIGNAL_LENGTH = 1024
     NUM_CHANNELS = 16

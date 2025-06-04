@@ -5,6 +5,8 @@ import tensorflow as tf
 tf.random.set_seed(1729)
 
 
+
+
 class CWGANGPOriginal(Model):
 
     def __init__(self, discriminator, generator, latent_dim, discriminator_extra_steps=3, gp_weight=10.0, **kwargs):
@@ -30,7 +32,9 @@ class CWGANGPOriginal(Model):
         return cls(generator=None, discriminator=None, **config)
 
     def call(self, inputs, training=False):
-        return self.generator(inputs, training=training)
+        noise, labels = inputs
+        gen_input = tf.concat([noise, labels], axis=1)
+        return self.generator(gen_input, training=training)
 
     @property
     def metrics(self):
@@ -95,9 +99,13 @@ class CWGANGPOriginal(Model):
         # labels_discriminator_channel = tf.reshape(
         #     labels_discriminator_channel, (-1, 1024, 1)
         # )
-        labels_discriminator_channel = tf.repeat(
-            tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
-        )
+        # labels_discriminator_channel = tf.repeat(
+        #     tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
+        # ) #(N,1024)
+        # labels_discriminator_channel = tf.expand_dims(labels_discriminator_channel, axis=2) #(N,1024,1)
+
+        labels_discriminator_channel = tf.expand_dims(labels_discriminator, axis=1)  # (32, 1, 1)
+        labels_discriminator_channel = tf.repeat(labels_discriminator_channel, repeats=1024, axis=1)  # (32, 1024, 1)
 
         # For each batch, we are going to perform the
         # following steps as laid out in the original paper:
@@ -199,9 +207,13 @@ class CWGANGPOriginal(Model):
         # labels_discriminator_channel = tf.reshape(
         #     labels_discriminator_channel, (-1, 1024, 1)
         # )
-        labels_discriminator_channel = tf.repeat(
-            tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
-        )  # (N, 1024, 1)
+        # labels_discriminator_channel = tf.repeat(
+        #     tf.expand_dims(labels_discriminator, axis=1), repeats=1024, axis=1
+        # )  # (N, 1024)
+        # labels_discriminator_channel = tf.expand_dims(labels_discriminator_channel, axis=2) # (N, 1024, 1)
+
+        labels_discriminator_channel = tf.expand_dims(labels_discriminator, axis=1)  # (32, 1, 1)
+        labels_discriminator_channel = tf.repeat(labels_discriminator_channel, repeats=1024, axis=1)  # (32, 1024, 1)
 
 
         # Get the latent vector

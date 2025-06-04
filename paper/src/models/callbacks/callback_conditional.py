@@ -130,23 +130,20 @@ class WandbCallbackGANConditional(Callback):
         psd_l2_mean = float(np.mean(psd_l2_scores))  # Final score
 
         # Calculate MMD_RBF
-        # Flatten each sample into a single vector
-        real_flat = tf.reshape(real, [real.shape[0], -1])
-        fake_flat = tf.reshape(fake, [fake.shape[0], -1])
+        # Make sure real and fake have the same shape for fair comparison
+        min_samples = min(real.shape[0], fake.shape[0])
+        real = real[:min_samples]
+        fake = fake[:min_samples]
 
+        # Now reshape
+        real_flat = real.reshape((min_samples, -1))
+        fake_flat = fake.reshape((min_samples, -1))
 
         # Define a function to compute RBF kernel
         def rbf_kernel(X, Y, sigma=1.0):
-          X = real_flat.numpy()
-          Y = fake_flat.numpy()
-
-          if X.shape[1] != Y.shape[1]:
-            print(f"[ERROR] Shape mismatch: X={X.shape}, Y={Y.shape}")
-            return  # skip logging to prevent crash
-
-          # Squared Euclidean distance
-          dists = cdist(X, Y, metric='sqeuclidean')
-          return np.exp(-dists / (2 * sigma ** 2))
+            # Squared Euclidean distance
+            dists = cdist(X, Y, metric='sqeuclidean')
+            return np.exp(-dists / (2 * sigma ** 2))
 
         # Compute kernel matrices
         K_xx = rbf_kernel(real_flat, real_flat)
@@ -226,7 +223,6 @@ class WandbCallbackGANConditional(Callback):
             'val/discriminator_loss': logs.get('val_discriminator_loss'),
             'val/generator_loss': logs.get('val_generator_loss'),
             'generations': self.wandb.Image(fig)
-
         }, step=epoch)
         plt.tight_layout()
         plt.close(fig)
@@ -237,27 +233,29 @@ class WandbCallbackGANConditional(Callback):
             self.log_psd(self.real_sample, generations, epoch=epoch)
             self.log_similarity_metrics(self.real_sample, generations, epoch=epoch)
 
-        # *** SAVE MODEL WEIGHTS ***
-        # Ensure model is built before saving
-        try:
-            tf.random.set_seed(epoch)
-            dummy_noise = tf.random.normal((1, self.model.latent_dim))
-            dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
-            dummy_cond = tf.zeros((1, 1024, 1)) 
+        # # *** SAVE MODEL WEIGHTS ***
+        # # Ensure model is built before saving
+        # try:
+        #     tf.random.set_seed(epoch)
+        #     dummy_noise = tf.random.normal((1, self.model.latent_dim))
+        #     dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
 
-            if self.model_type == "student":
-                fake_signal = self.model.generator([dummy_noise, dummy_label])
-                _ = self.model.discriminator([fake_signal, dummy_cond])
-            else:  # original
-                gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
-                fake_signal = self.model.generator(gen_input)
-                disc_input = tf.concat([fake_signal, dummy_cond], axis=-1)
-                _ = self.model.discriminator(disc_input)
+        #     if self.model_type == "student":
+        #         fake_signal = self.model.generator([dummy_noise, dummy_label])
+        #         dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
+        #         _ = self.model.discriminator([fake_signal, dummy_cond])
+        #     else: # original
+        #         noise_and_labels = tf.concat([dummy_noise, dummy_label], axis=1)
+        #         fake_signal = self.model.generator(noise_and_labels)
+        #         dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
+        #         disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
+        #         _ = self.model.discriminator(disc_input)
 
-            print("[INFO] Submodels are initialized and ready for saving.")
-        except Exception as e:
-                print(f"[Warning] Could not build submodels before saving: {e}")
-                return
+        #     print("[INFO] CWGANGP or CWGANGPOriginal submodels are initialized and ready for saving.")
+
+        # except Exception as e:
+        #         print(f"[ERROR] Failed to build CWGANGP or CWGANGPOriginal model before saving: {e}")
+        #         return
 
         # Save periodically and also to wandb directory
         filename = f"model-{self.wandb.run.id}-epoch-{epoch+1}.weights.h5"
@@ -266,19 +264,21 @@ class WandbCallbackGANConditional(Callback):
         print(f"[Saved] Model weights saved to: {full_path}")
 
         # Save backup weights at each epoch
-        backup_filename = f"backup-epoch-{epoch+1}.h5"
+        backup_filename = f"backup-epoch-{epoch+1}.weights.h5"
         backup_path = os.path.join(self.model_path, backup_filename)
         self.model.save_weights(backup_path)
         print(f"[Backup] Model weights saved to: {backup_path}")
 
         # Save latest weights to wandb directory for resuming
         if self.wandb.run:
-            wandb_resume_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.h5")
+            wandb_resume_path = os.path.join(self.wandb.run.dir, f"model-{self.wandb.run.id}.weights.h5")
             self.model.save_weights(wandb_resume_path)
             print(f"[Resume] Model weights saved to: {wandb_resume_path}")
 
-            # ✅ Log that weights were saved
+            # Log that weights were saved
             self.wandb.log({"weights_saved_epoch": epoch + 1}, step=epoch)
+
+        
 
         # Log current epoch
         self.wandb.log({"epoch_logged": epoch + 1}, step=epoch)

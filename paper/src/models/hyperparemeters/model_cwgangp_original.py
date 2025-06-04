@@ -28,11 +28,13 @@ def generator_loss(fake_img):
     return -tf.reduce_mean(fake_img)
 
 
-def build_gan():
-    BATCH_SIZE = 32
-    EPOCHS = 1
-
+def build_gan(num_epochs=1, batch_size=32):
+    BATCH_SIZE = batch_size
+    EPOCHS = num_epochs
     CODINGS_SIZE = 100
+    SIGNAL_LENGTH = 1024
+    NUM_CHANNELS = 16
+    LABEL_DIM = 1
 
     generator = Sequential([
         Dense(4 * 256, input_shape=(CODINGS_SIZE+1,)),  # Added 1 here to have correct shape
@@ -79,8 +81,8 @@ def build_gan():
         _ = discriminator(disc_input)
 
         # Build full model by calling once
-        gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
-        _ = gan(gen_input)
+        # gen_input = tf.concat([dummy_noise, dummy_label], axis=1)
+        _ = gan([dummy_noise, dummy_label])
 
         print("[INFO] Generator and discriminator successfully built.")
     except Exception as e:
