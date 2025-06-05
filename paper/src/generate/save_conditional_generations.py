@@ -108,19 +108,31 @@ def save_conditional_generations(working_dir, model_type, model, epoch, name, nu
         gen_input = tf.concat([noise, distances_scaled], axis=1)
         generated = generator.predict(gen_input, verbose=0)
     generated = reshape_generations(generated)
-    generated = denormalize(generated, -3884.0, 4772.0, -1, 1)
-    generated = np.round(generated, 0)
+    #generated = denormalize(generated, -3884.0, 4772.0, -1, 1)
+    #generated = np.round(generated, 0)
     print(f"[INFO] Generated data shape: {generated.shape}")
     print("Generation time: %.2f seconds" % (time.time() - start_time))
 
     # Save output to working_dir/data/generated/<model_type>/model-<model_id>/
-    output_dir = os.path.join(working_dir, 'data', 'generated', model_type, f'model-{model_id}')
+    output_dir = os.path.join(working_dir, 'student-radar', 'paper', 'data', 'generated', model_type, f'model-{model_id}', name)
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, f'{name}.npy')
-    np.save(output_path, generated)
-    print(f"[Saved] {output_path}")
+    print(f"[Output directory] {output_dir}")
+    # output_path = os.path.join(output_dir, f'{name}.npy')
+    # np.save(output_path, generated)
+    # print(f"[Saved] {output_path}")
+      
+    # return output_path
 
-    return output_path
+    output_path_generations = os.path.join(output_dir, 'generator_data.npy')
+    output_path_labels = os.path.join(output_dir, 'generator_labels.npy')
+    print(f"[Output generations file] {output_path_generations}")
+    print(f"[Output labels file] {output_path_generations}")
+    np.save(output_path_generations, generated, allow_pickle=True)
+    np.save(output_path_labels, distances_scaled, allow_pickle=True)
+    print(f"[Saved] {output_path_generations}")
+    print(f"[Saved] {output_path_labels}")
+
+    return [output_path_generations, output_path_labels]
 
 
 def main():

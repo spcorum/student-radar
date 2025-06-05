@@ -9,19 +9,20 @@ import wandb
 import numpy as np
 import tensorflow as tf
 import glob
+from scipy.signal import welch
+from scipy.stats import pearsonr
 
 
 class WandbCallbackGANConditional(Callback):
 
-    def __init__(self, wandb_module, real_sample=None, save_subdir="student", model_type="student"):
+    def __init__(self, wandb_module, real_sample=None, model_type="student", save_interval=10):
         self.wandb = wandb_module
         self.real_sample = real_sample
         self.model_type = model_type
         self.range_bins = np.arange(1024)
-        # self.model_path = f'./checkpoints/model-{wandb_module.run.id}'
-        self.model_path = os.path.join("./checkpoints", save_subdir, f"model-{wandb_module.run.id}")
-        if not os.path.exists(self.model_path):
-            os.makedirs(self.model_path)
+        self.save_interval = save_interval
+        self.model_path = os.path.join("./checkpoints", model_type, f"model-{wandb_module.run.id}")
+        os.makedirs(self.model_path, exist_ok=True)
         super().__init__()
 
     def log_channelwise_statistics(self, real, fake, epoch):
@@ -81,8 +82,8 @@ class WandbCallbackGANConditional(Callback):
                 plt.ylabel('Power/Frequency (dB/Hz)')
                 plt.legend()
                 plt.grid(True)
-                self.wandb.log({f"psd_channel_{ch}": wandb.Image(plt)}, step=epoch)
                 plt.tight_layout()
+                self.wandb.log({f"psd_channel_{ch}": wandb.Image(plt)}, step=epoch)
                 plt.close()
 
             # calculate metrics
@@ -168,7 +169,7 @@ class WandbCallbackGANConditional(Callback):
         # Average p-value (higher means more similar distributions)
         ks_avg_p = float(np.mean(ks_p_values))
 
-        # og to WandB 
+        # log to WandB 
         self.wandb.log({
             "similarity/psd_l2_mean": psd_l2_mean,
             "similarity/mmd_rbf": mmd_rbf,
@@ -190,10 +191,21 @@ class WandbCallbackGANConditional(Callback):
                     print(f"[Cleanup] Deleted old backup: {file_path}")
                 except Exception as e:
                     print(f"[Warning] Could not delete {file_path}: {e}")
+
+    def cleanup_old_generators(self, max_generators=5):
+        generator_files = sorted(glob.glob(os.path.join(self.model_path, "generator-epoch-*.h5")))
+        if len(generator_files) > max_generators:
+            files_to_delete = generator_files[:-max_generators]
+            for file_path in files_to_delete:
+                try:
+                    os.remove(file_path)
+                    print(f"[Cleanup] Deleted old generator: {file_path}")
+                except Exception as e:
+                    print(f"[Warning] Could not delete {file_path}: {e}")
     
 
     def on_epoch_end(self, epoch, logs=None):
-        # *** SAVING GENERATIONS AS IMAGE ***
+        
         tf.random.set_seed(epoch)
         noise = tf.random.normal(shape=(3, 100))
         labels = tf.cast(tf.reshape(tf.linspace(23, 5, 3), shape=(3, 1)), tf.float32)
@@ -201,9 +213,8 @@ class WandbCallbackGANConditional(Callback):
 
         if self.model_type == "student":
              generations = self.model.generator([noise, labels])
-        else:  # original
-            noise_and_labels = tf.concat([noise, labels], axis=1)
-            generations = self.model.generator(noise_and_labels)
+        else:  # original 
+            generations = self.model.generator(tf.concat([noise, labels], axis=1))
 
         a, b = -1, 1
         data_min, data_max = -2444.0, 2544.0
@@ -233,30 +244,6 @@ class WandbCallbackGANConditional(Callback):
             self.log_psd(self.real_sample, generations, epoch=epoch)
             self.log_similarity_metrics(self.real_sample, generations, epoch=epoch)
 
-        # # *** SAVE MODEL WEIGHTS ***
-        # # Ensure model is built before saving
-        # try:
-        #     tf.random.set_seed(epoch)
-        #     dummy_noise = tf.random.normal((1, self.model.latent_dim))
-        #     dummy_label = tf.zeros((1, 1))  # adjust if your labels are multi-dimensional
-
-        #     if self.model_type == "student":
-        #         fake_signal = self.model.generator([dummy_noise, dummy_label])
-        #         dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
-        #         _ = self.model.discriminator([fake_signal, dummy_cond])
-        #     else: # original
-        #         noise_and_labels = tf.concat([dummy_noise, dummy_label], axis=1)
-        #         fake_signal = self.model.generator(noise_and_labels)
-        #         dummy_cond = tf.zeros((1, 1024, 1))  # ensure shape matches discriminator input
-        #         disc_input = tf.concat([fake_signal, dummy_cond], axis=2)
-        #         _ = self.model.discriminator(disc_input)
-
-        #     print("[INFO] CWGANGP or CWGANGPOriginal submodels are initialized and ready for saving.")
-
-        # except Exception as e:
-        #         print(f"[ERROR] Failed to build CWGANGP or CWGANGPOriginal model before saving: {e}")
-        #         return
-
         # Save periodically and also to wandb directory
         filename = f"model-{self.wandb.run.id}-epoch-{epoch+1}.weights.h5"
         full_path = os.path.join(self.model_path, filename)
@@ -278,8 +265,6 @@ class WandbCallbackGANConditional(Callback):
             # Log that weights were saved
             self.wandb.log({"weights_saved_epoch": epoch + 1}, step=epoch)
 
-        
-
         # Log current epoch
         self.wandb.log({"epoch_logged": epoch + 1}, step=epoch)
 
@@ -291,5 +276,6 @@ class WandbCallbackGANConditional(Callback):
         self.model.generator.save(f"{gen_save_path}.h5")
         print(f"[Saved] Generator model saved to: {gen_save_path}")
 
-        # Clean up old backups
+        # Clean up 
         self.cleanup_old_backups(max_backups=10)
+        self.cleanup_old_generators(max_generators=5)
