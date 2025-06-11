@@ -22,8 +22,12 @@ class WandbCallbackGANConditional(Callback):
         self.range_bins = np.arange(1024)
         self.save_interval = save_interval
         self.model_path = os.path.join("./checkpoints", model_type, f"model-{wandb_module.run.id}")
+        self.save_interval = save_inverval
         os.makedirs(self.model_path, exist_ok=True)
         super().__init__()
+
+    def set_model(self, model):
+        self.model = model
 
     def log_channelwise_statistics(self, real, fake, epoch):
         """
@@ -214,7 +218,7 @@ class WandbCallbackGANConditional(Callback):
         if self.model_type == "student":
              generations = self.model.generator([noise, labels])
         else:  # original 
-            generations = self.model.generator(tf.concat([noise, labels], axis=1))
+             generations = self.model.generator(tf.concat([noise, labels], axis=1))
 
         a, b = -1, 1
         data_min, data_max = -2444.0, 2544.0
